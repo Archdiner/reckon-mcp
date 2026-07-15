@@ -51,8 +51,8 @@ This is experimental and early. It works, it is tested, and it is deployed for t
 ## Install
 
 ```bash
-git clone <your-fork-url> reckon
-cd reckon/mcp-server
+git clone https://github.com/Archdiner/reckon-mcp.git
+cd reckon-mcp/mcp-server
 npm install
 npm run build
 npm run deploy
