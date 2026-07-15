@@ -1,0 +1,63 @@
+/**
+ * Elicitation (Reckon v5). Generates the prompt that asks the human to explain.
+ *
+ * The load-bearing rule (reckon-design-doc-v5.md §① / IOED research): ask for
+ * MECHANISM, never PROCEDURE. "Walk me through the steps" does NOT expose the
+ * illusion of explanatory depth; "why does this work, and what breaks if done
+ * differently?" does. A procedure prompt gives the grader nothing real to grade.
+ *
+ * Elicitation can fire at two stages:
+ *   - 'plan'  — BEFORE the agent builds (catches "should we build this at all",
+ *               the strategy-fork value we kept when we replaced the fork system)
+ *   - 'build' — AFTER a change, to verify comprehension of what shipped
+ */
+
+export type Stage = 'plan' | 'build';
+
+export interface ElicitInput {
+  concept: string;
+  subsystem: string;
+  stage: Stage;
+}
+
+export function elicitPrompt({ concept, subsystem, stage }: ElicitInput): string {
+  const head =
+    stage === 'plan'
+      ? `Before I build ${concept} in ${subsystem} — explain the plan back to me.`
+      : `Explain what just happened with ${concept} in ${subsystem}.`;
+
+  return [
+    head,
+    '',
+    'Not the steps — the MECHANISM:',
+    `  • why does this approach work?`,
+    `  • what would BREAK if it were done differently?`,
+    '',
+    'In your own words, from your own head. A real swing beats a polished echo.',
+  ].join('\n');
+}
+
+/**
+ * The re-explanation prompt after a failed grade. This is just the grader's
+ * chosen hole, wrapped so the tone stays chill (§③): point at the one gap,
+ * invite another pass — never punish.
+ */
+export function retryPrompt(hole: string, assisted: boolean): string {
+  const rescue = assisted
+    ? ''
+    : `\n(Stuck? Open the source and re-read — that's allowed. I'll mark it ASSISTED and ` +
+      `re-check you cold later, when it's not in front of you.)`;
+  return `You're close — one gap:\n\n${hole}\n\nTake another pass.${rescue}`;
+}
+
+/**
+ * The cold-recall prompt (§④). No source, no hints — reconstruct from memory.
+ * This is the real retention test; ASSISTED passes come back here sooner/harder.
+ */
+export function recallPrompt(concept: string, subsystem: string): string {
+  return [
+    `Cold recall — no source in front of you.`,
+    `Reconstruct ${concept} in ${subsystem}: the mechanism, and the one thing that breaks it.`,
+    `From your own head. If you can't, it resurfaces again.`,
+  ].join('\n');
+}

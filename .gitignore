@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-test/
+*.tsbuildinfo
+
+# Local ledger + logs (never commit a user's decision history)
+*.db
+*.db-journal
+prompts.jsonl
+logs/
+
+# Backups from deploy/migration
+*.bak-*
+*.bak
+
+# Retired code kept locally, not for publishing
+_deprecated/
+
+# Battle-test + e2e artifacts (regenerated, not source)
+BATTLE-*.md
+E2E-FINDINGS.md
+*-harness.mts
+*-harness.mjs
+battle-harness.mjs
+*-results.json
+harness-stdout.log
+
+# OS / editor
+.DS_Store
+*.log
+.idea/
+.vscode/
