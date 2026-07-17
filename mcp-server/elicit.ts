@@ -44,22 +44,16 @@ export function elicitPrompt({ concept, subsystem, stage }: ElicitInput): string
  */
 export function planElicitPrompt(
   subsystem: string,
-  gated: { concept: string; summary: string }[],
-  deferredCount: number
+  gated: { concept: string; summary: string }[]
 ): string {
   const items = gated.map((d, i) => `  ${i + 1}. ${d.summary} (${d.concept})`).join('\n');
-  const tail =
-    deferredCount > 0
-      ? `\n(${deferredCount} smaller decision${deferredCount === 1 ? '' : 's'} in this plan will come back later, cold, through recall. Right now, just these.)`
-      : '';
   return [
-    `Before I build in ${subsystem}, explain the load-bearing decisions in this plan.`,
+    `Before I build in ${subsystem}, explain the load-bearing sub-problems in this plan.`,
     'Not the steps. The MECHANISM of each: why it works, and what breaks if done differently.',
     '',
     items,
-    tail,
     '',
-    'In your own words, from your own head. You need to show real understanding of every one.',
+    'One explanation, in your own words. You need to show real understanding of every one.',
   ].join('\n');
 }
 

@@ -97,8 +97,8 @@ test('full loop: explain → grade (fail-open) → logged UNGRADED, NOT schedule
   await storage.close();
 });
 
-test('plan: decompose → gate top-N, cover-partial FAILS (false-pass fix), tail deferred', async () => {
-  // A committed mock CLI that answers both the decompose and plan-grade calls.
+test('plan: decompose into clusters, gate ALL, cover-partial FAILS, no deferral', async () => {
+  // A committed mock CLI that answers both the decompose (clusters) and plan-grade calls.
   const mock = path.join(tmp, 'plan-mock.mjs');
   fs.writeFileSync(
     mock,
@@ -106,10 +106,10 @@ test('plan: decompose → gate top-N, cover-partial FAILS (false-pass fix), tail
 const argv=process.argv.join('\\n');let s='';process.stdin.setEncoding('utf8');
 process.stdin.on('data',d=>s+=d);
 process.stdin.on('end',()=>{let v;
- if(argv.includes('load-bearing decisions')){v={decisions:[
-   {concept:'a',summary:'decision a',question:'why a?'},{concept:'b',summary:'decision b',question:'why b?'},
-   {concept:'c',summary:'decision c',question:'why c?'},{concept:'d',summary:'decision d',question:'why d?'}]};}
- else if(argv.includes("Reckon's plan grader")){const gated=['a','b','c'];
+ if(argv.includes('GROUPED into coherent sub-problems')){v={decisions:[
+   {concept:'data',summary:'data layer',question:'why?'},{concept:'auth',summary:'auth',question:'why?'},
+   {concept:'infra',summary:'infra',question:'why?'},{concept:'obs',summary:'observability',question:'why?'}]};}
+ else if(argv.includes("Reckon's plan grader")){const gated=['data','auth','infra','obs'];
    const covered=gated.filter(c=>s.includes('[[COVER:'+c+']]'));const missing=gated.filter(c=>!covered.includes(c));
    v={covered,missing,pass:missing.length===0,hole:missing.length?'explain '+missing[0]:'',note:'p'};}
  else v={scores:{},pass:false,overlap:'high',hole:'x',note:'s'};
@@ -123,20 +123,19 @@ process.stdin.on('end',()=>{let v;
     await storage.init();
     const loop = new ComprehensionLoop(storage);
     const o = await loop.open({ concept: 'p', subsystem: 'plansub', stage: 'plan', groundTruth: 'a big multi-decision plan', sessionId: 's' });
-    assert.match(o.prompt, /decision a/, 'plan prompt must name the decomposed decisions');
-    assert.match(o.prompt, /come back later|recall/, 'plan prompt must mention deferred tail');
+    assert.match(o.prompt, /data layer/, 'plan prompt must name the clusters');
+    assert.doesNotMatch(o.prompt, /come back later/, 'no deferral in the clustered model');
 
-    // cover only 2 of the 3 gated → must FAIL (this is the false-pass fix)
-    const partial = await loop.submit(o.id, '[[COVER:a]] [[COVER:b]] two of three', false);
-    assert.equal(partial!.pass, false, 'covering 2 of 3 gated decisions must FAIL');
+    // cover only 3 of the 4 clusters → must FAIL (all required, no partial pass)
+    const partial = await loop.submit(o.id, '[[COVER:data]] [[COVER:auth]] [[COVER:infra]] three of four', false);
+    assert.equal(partial!.pass, false, 'covering 3 of 4 clusters must FAIL');
 
-    // cover all 3 → pass, and the 1 tail decision (d) is deferred into the recall queue
-    const full = await loop.submit(o.id, '[[COVER:a]] [[COVER:b]] [[COVER:c]] all three', false);
-    assert.equal(full!.pass, true, 'covering all gated decisions passes');
+    // cover all 4 → pass, and NO deferred rows (clustering covers everything in one grade)
+    const full = await loop.submit(o.id, '[[COVER:data]] [[COVER:auth]] [[COVER:infra]] [[COVER:obs]] all four', false);
+    assert.equal(full!.pass, true, 'covering all clusters passes');
     const rows = await storage.getBySubsystem('plansub');
-    const deferred = rows.filter((r) => r.concept === 'd');
-    assert.equal(deferred.length, 1, 'the tail decision must be deferred into the ledger for recall');
-    assert.equal(deferred[0].attempts, 0, 'a deferred decision has not been examined yet');
+    assert.equal(rows.length, 1, 'no deferral: exactly one plan row, no tail decisions in the ledger');
+    assert.equal(rows[0].concept, 'p');
     await storage.close();
   } finally {
     process.env.RECKON_GRADER_CMD = prev;

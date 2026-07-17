@@ -155,9 +155,14 @@ export async function gradePlan(input: {
 function gradeViaCli(system: string, user: string): Promise<string> {
   const cmd = cliCmd();
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, ['-p', '--model', graderModel(), '--append-system-prompt', system], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    // Strip the environment: the grader must not load the user's MCP servers, plugins, or
+    // project settings. It only judges text. Stripping cuts ~7s of startup per call AND
+    // keeps the grader truly isolated (it cannot see the user's tools).
+    const child = spawn(
+      cmd,
+      ['-p', '--model', graderModel(), '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--setting-sources', '', '--append-system-prompt', system],
+      { stdio: ['pipe', 'pipe', 'pipe'] }
+    );
     let out = '';
     let err = '';
     const timer = setTimeout(() => {

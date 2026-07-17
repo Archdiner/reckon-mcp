@@ -73,7 +73,7 @@ To undo a deploy, restore the `.bak-*` files it created (in `~/.reckon` and `~/.
 
 Once installed, the agent calls Reckon on its own at decision points. You do not have to invoke anything. In practice:
 
-- When you approve a plan and the agent leaves plan mode, a hook reminds it to run the comprehension check before building. A plan is first decomposed into its load-bearing decisions: the few that dominate are checked now (you must explain the mechanism of each, and covering only some of them fails), and the smaller tail is deferred to cold recall over time. This keeps a big plan from collapsing into one overwhelming "explain everything" prompt that a partial answer could pass.
+- When you approve a plan and the agent leaves plan mode, a hook reminds it to run the comprehension check before building. A plan is first grouped into 2 to 4 coherent sub-problems (data layer, auth, infrastructure, and so on). You give one explanation covering all of them, and the grader requires the mechanism of each, so a partial answer fails. This covers the whole plan in one bounded explanation, rather than either one overwhelming "explain everything" prompt that a partial answer could pass, or many separate asks.
 - When the agent makes a load-bearing call mid-session, a standing instruction nudges it to flag that call the same way.
 
 The tools the server exposes:

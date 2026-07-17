@@ -28,19 +28,26 @@ export interface Decomposition {
 // STRICT JSON-only contract. `claude -p` appends to Claude Code's agentic system prompt,
 // so a loose instruction makes the model go conversational (it will ask clarifying
 // questions instead of answering). This must be as rigid as the grader prompt.
+//
+// v5.1: we return CLUSTERS, not atomic decisions. A plan's ~6-10 fine-grained decisions
+// are grouped into 2-4 coherent sub-problems (e.g. "data layer" bundles schema + indexing
+// + pooling). The whole plan is then covered in one bounded explanation with no deferral,
+// which is the UX a ship-fast user needs: a few big chunks, not ten atomic asks.
 const SYSTEM = [
-  'You are a JSON function. Input: a software PLAN. Output: its load-bearing decisions.',
+  'You are a JSON function. Input: a software PLAN. Output: its load-bearing decisions,',
+  'GROUPED into coherent sub-problems (clusters).',
   'A load-bearing decision is a choice where getting it wrong breaks the system or is',
-  'expensive to reverse. Ignore boilerplate. Rank most-load-bearing first; the first two',
-  'must be the ones that dominate the plan.',
+  'expensive to reverse. Ignore boilerplate. Group related decisions into a natural',
+  'sub-problem a developer would reason about as one unit (e.g. data layer, auth, infra).',
+  'Rank most-dominant first.',
   '',
   'STRICT OUTPUT RULES:',
   '- Output ONLY one JSON object. No preamble, no prose, no markdown, no code fences.',
-  '- NEVER ask a question or request clarification. If the plan is vague, INFER the most',
-  '  likely decisions and proceed.',
-  '- Each decision: a kebab-case "concept" slug, a one-line "summary", and ONE "question"',
-  '  that is a "why does this work / what breaks if done differently" question.',
-  '- Return 4 to 8 decisions.',
+  '- NEVER ask a question or request clarification. If the plan is vague, INFER and proceed.',
+  '- Return 2 to 4 clusters (never more). Each must be a real sub-problem, not one decision.',
+  '- Each cluster: a kebab-case "concept" slug, a "summary" naming the specific decisions it',
+  '  bundles, and ONE "question" that asks for the MECHANISM of the whole sub-problem (why it',
+  '  works / what breaks if done differently), touching each bundled decision.',
   '- Schema exactly: {"decisions":[{"concept":"","summary":"","question":""}]}',
   '',
   'Your entire response must start with { and end with }. Nothing before or after.',
@@ -73,9 +80,13 @@ export async function decompose(plan: string): Promise<Decomposition> {
 function runCli(system: string, user: string): Promise<string> {
   const cmd = cliCmd();
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, ['-p', '--model', model(), '--append-system-prompt', system], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    // Strip the environment (no MCP servers, plugins, or project settings): ~7s faster
+    // startup per call, and decomposition has no business seeing the user's tools.
+    const child = spawn(
+      cmd,
+      ['-p', '--model', model(), '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--setting-sources', '', '--append-system-prompt', system],
+      { stdio: ['pipe', 'pipe', 'pipe'] }
+    );
     let out = '';
     let err = '';
     const timer = setTimeout(() => {
