@@ -33,3 +33,6 @@ harness-stdout.log
 *.log
 .idea/
 .vscode/
+
+# Scenario/design investigation artifacts
+SCENARIO-*.md
