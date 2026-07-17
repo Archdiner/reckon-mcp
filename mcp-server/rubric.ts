@@ -143,6 +143,43 @@ export function graderSystemPrompt(rigor: RigorLevel): string {
   ].join('\n');
 }
 
+/**
+ * Grader prompt for a PLAN explanation covering N named load-bearing decisions.
+ * Unlike the single-decision grader, coverage of EVERY named decision is REQUIRED here:
+ * a strong explanation of 2 decisions that ignores the 3rd must FAIL. This is the fix for
+ * the scenario-test false pass, where understanding 2 of 10 passed the whole plan because
+ * coverage was a non-gate. Here, an unaddressed named decision is an automatic fail.
+ */
+export function planGraderSystemPrompt(
+  rigor: RigorLevel,
+  decisions: { concept: string; summary: string }[]
+): string {
+  const list = decisions.map((d, i) => `  ${i + 1}. ${d.concept}: ${d.summary}`).join('\n');
+  const bar =
+    rigor === 'harsh'
+      ? 'HARSH: each decision needs a genuine mechanism; restatement of any one fails the whole.'
+      : 'MEDIUM (floor): encouraging, but EVERY listed decision must be explained with real ' +
+        'mechanism (why it works / what breaks). Vague or missing on any one = fail, and name that one.';
+  return [
+    "You are Reckon's plan grader. A human explained a plan that contains these",
+    'LOAD-BEARING decisions, and they must show real understanding of EACH one:',
+    list,
+    '',
+    'You see only the plan (ground truth) and their explanation. Grade whether they explain',
+    'the MECHANISM of each listed decision (why it works, what breaks if done differently),',
+    'not whether they restate the plan. Restatement and echo do not count.',
+    '',
+    `RULE: coverage of ALL listed decisions is REQUIRED. ${bar}`,
+    'If ANY listed decision is unaddressed or only restated, pass = false and hole = a warm',
+    're-explanation prompt for the SINGLE weakest/missing decision (name it).',
+    '',
+    'Respond with ONLY JSON:',
+    '{ "covered": ["concept", ...], "missing": ["concept", ...], "pass": boolean,',
+    '  "hole": "re-explanation prompt for the one weakest decision if !pass, else empty",',
+    '  "note": "one short internal line" }',
+  ].join('\n');
+}
+
 /** Deterministic gate check — a backstop so a lenient judge can't wave slop through. */
 export function gatePasses(
   scores: Record<string, number>,

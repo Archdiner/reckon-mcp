@@ -73,7 +73,7 @@ To undo a deploy, restore the `.bak-*` files it created (in `~/.reckon` and `~/.
 
 Once installed, the agent calls Reckon on its own at decision points. You do not have to invoke anything. In practice:
 
-- When you approve a plan and the agent leaves plan mode, a hook reminds it to run the comprehension check on the plan before building. You explain the plan back, the grader checks it.
+- When you approve a plan and the agent leaves plan mode, a hook reminds it to run the comprehension check before building. A plan is first decomposed into its load-bearing decisions: the few that dominate are checked now (you must explain the mechanism of each, and covering only some of them fails), and the smaller tail is deferred to cold recall over time. This keeps a big plan from collapsing into one overwhelming "explain everything" prompt that a partial answer could pass.
 - When the agent makes a load-bearing call mid-session, a standing instruction nudges it to flag that call the same way.
 
 The tools the server exposes:
@@ -107,7 +107,7 @@ If the grader cannot run for any reason, it fails open: your explanation is logg
 Worth being honest about:
 
 - The triggers are soft. The plan-gate hook fires on the "leaving plan mode" signal, which is reliable for planned work. But a session where you just say "proceed" and never enter plan mode has no such signal, so the agent can skip the check. Hardening this to a hard gate is future work.
-- Grading is slow. Each grade spawns a separate model call, so budget roughly 30 to 60 seconds.
+- Grading is slow. Each grade spawns a separate model call, so budget roughly 30 to 60 seconds. A plan checkpoint is slower still (around 90 seconds), because it runs a decomposition pass and then a grading pass.
 - The grader is a model, not an oracle. It is good at catching restatement and missing mechanism, but it is not perfect.
 
 ## The research behind it

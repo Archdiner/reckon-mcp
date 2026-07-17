@@ -138,7 +138,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (missing.length) throw new Error(`reckon_explain missing required field(s): ${missing.join(', ')}`);
         if (stage !== 'plan' && stage !== 'build') throw new Error(`stage must be "plan" or "build", got: ${stage}`);
         const gt = ground_truth.includes('\n+') || ground_truth.startsWith('+') ? addedLines(ground_truth) || ground_truth : ground_truth;
-        const r = loop.open({ concept, subsystem, stage, groundTruth: gt, rigor, sessionId: currentSessionId });
+        const r = await loop.open({ concept, subsystem, stage, groundTruth: gt, rigor, sessionId: currentSessionId });
         return text(r);
       }
       case 'reckon_grade': {

@@ -13,7 +13,7 @@
  * but mark the result ungraded so it can't masquerade as a real pass).
  */
 import { spawn } from 'child_process';
-import { RigorLevel, graderSystemPrompt, gatePasses, DIMENSIONS } from './rubric.js';
+import { RigorLevel, graderSystemPrompt, planGraderSystemPrompt, gatePasses, DIMENSIONS } from './rubric.js';
 
 // Read at CALL time, not module-load time (ESM hoists imports before test env setup).
 // A different model than the main coding agent, on purpose ("don't self-judge").
@@ -98,6 +98,57 @@ export async function grade(input: GradeInput): Promise<GradeResult> {
 /** LOUD fail-open: pass so we never block, but flagged so it can't look like a real grade. */
 function failOpen(note: string): GradeResult {
   return { pass: true, hole: '', scores: emptyScores(), overlap: 'unknown', ungraded: true, note };
+}
+
+export interface PlanGradeResult {
+  pass: boolean;
+  hole: string;
+  covered: string[];
+  missing: string[];
+  ungraded: boolean;
+  note: string;
+}
+
+/**
+ * Grade a plan explanation that must cover N named load-bearing decisions. Coverage of
+ * EVERY named decision is required (the false-pass fix). Fails open LOUD like grade().
+ */
+export async function gradePlan(input: {
+  groundTruth: string;
+  explanation: string;
+  rigor: RigorLevel;
+  decisions: { concept: string; summary: string }[];
+}): Promise<PlanGradeResult> {
+  const system = planGraderSystemPrompt(input.rigor, input.decisions);
+  const user = [
+    'PLAN (ground truth; the human did NOT write this):',
+    '"""', input.groundTruth.slice(0, 8000), '"""',
+    '',
+    "THE HUMAN'S EXPLANATION (grade coverage of every listed decision):",
+    '"""', input.explanation.slice(0, 6000), '"""',
+  ].join('\n');
+
+  let raw: string;
+  try {
+    raw = await gradeViaCli(system, user);
+  } catch (err: any) {
+    return { pass: true, hole: '', covered: [], missing: [], ungraded: true, note: `plan grader error: ${err?.message || err}` };
+  }
+  const parsed = extractJson(raw);
+  if (!parsed || parsed.pass === undefined) {
+    return { pass: true, hole: '', covered: [], missing: [], ungraded: true, note: 'plan grader output unparseable' };
+  }
+  const missing = Array.isArray(parsed.missing) ? parsed.missing.map(String) : [];
+  // Deterministic backstop: if the model says pass but left any decision missing, it fails.
+  const pass = parsed.pass === true && missing.length === 0;
+  return {
+    pass,
+    hole: pass ? '' : String(parsed.hole || 'Explain the mechanism of the decision you skipped.'),
+    covered: Array.isArray(parsed.covered) ? parsed.covered.map(String) : [],
+    missing,
+    ungraded: false,
+    note: String(parsed.note || ''),
+  };
 }
 
 /** The only backend: the Claude Code CLI, on the user's subscription auth (no API key). */

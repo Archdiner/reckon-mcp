@@ -44,9 +44,9 @@ test('elicitPrompt asks for MECHANISM, not procedure', () => {
   assert.doesNotMatch(p, /walk me through the steps/i);
 });
 
-test('rigor floors at medium (never gentle)', () => {
+test('rigor floors at medium (never gentle)', async () => {
   const loop = new ComprehensionLoop(new Storage());
-  const r = loop.open({ concept: 'c', subsystem: 's', stage: 'build', groundTruth: 'gt', rigor: undefined as any, sessionId: 'x' });
+  const r = await loop.open({ concept: 'c', subsystem: 's', stage: 'build', groundTruth: 'gt', rigor: undefined as any, sessionId: 'x' });
   assert.equal(r.rigor, 'medium');
 });
 
@@ -68,7 +68,7 @@ test('full loop: explain → grade (fail-open) → logged UNGRADED, NOT schedule
   await storage.init();
   const loop = new ComprehensionLoop(storage);
 
-  const opened = loop.open({
+  const opened = await loop.open({
     concept: 'isolated-grader',
     subsystem: 'reckon',
     stage: 'build',
@@ -97,12 +97,58 @@ test('full loop: explain → grade (fail-open) → logged UNGRADED, NOT schedule
   await storage.close();
 });
 
+test('plan: decompose → gate top-N, cover-partial FAILS (false-pass fix), tail deferred', async () => {
+  // A committed mock CLI that answers both the decompose and plan-grade calls.
+  const mock = path.join(tmp, 'plan-mock.mjs');
+  fs.writeFileSync(
+    mock,
+    `#!/usr/bin/env node
+const argv=process.argv.join('\\n');let s='';process.stdin.setEncoding('utf8');
+process.stdin.on('data',d=>s+=d);
+process.stdin.on('end',()=>{let v;
+ if(argv.includes('load-bearing decisions')){v={decisions:[
+   {concept:'a',summary:'decision a',question:'why a?'},{concept:'b',summary:'decision b',question:'why b?'},
+   {concept:'c',summary:'decision c',question:'why c?'},{concept:'d',summary:'decision d',question:'why d?'}]};}
+ else if(argv.includes("Reckon's plan grader")){const gated=['a','b','c'];
+   const covered=gated.filter(c=>s.includes('[[COVER:'+c+']]'));const missing=gated.filter(c=>!covered.includes(c));
+   v={covered,missing,pass:missing.length===0,hole:missing.length?'explain '+missing[0]:'',note:'p'};}
+ else v={scores:{},pass:false,overlap:'high',hole:'x',note:'s'};
+ process.stdout.write(JSON.stringify(v));});`
+  );
+  fs.chmodSync(mock, 0o755);
+  const prev = process.env.RECKON_GRADER_CMD;
+  process.env.RECKON_GRADER_CMD = mock;
+  try {
+    const storage = new Storage();
+    await storage.init();
+    const loop = new ComprehensionLoop(storage);
+    const o = await loop.open({ concept: 'p', subsystem: 'plansub', stage: 'plan', groundTruth: 'a big multi-decision plan', sessionId: 's' });
+    assert.match(o.prompt, /decision a/, 'plan prompt must name the decomposed decisions');
+    assert.match(o.prompt, /come back later|recall/, 'plan prompt must mention deferred tail');
+
+    // cover only 2 of the 3 gated → must FAIL (this is the false-pass fix)
+    const partial = await loop.submit(o.id, '[[COVER:a]] [[COVER:b]] two of three', false);
+    assert.equal(partial!.pass, false, 'covering 2 of 3 gated decisions must FAIL');
+
+    // cover all 3 → pass, and the 1 tail decision (d) is deferred into the recall queue
+    const full = await loop.submit(o.id, '[[COVER:a]] [[COVER:b]] [[COVER:c]] all three', false);
+    assert.equal(full!.pass, true, 'covering all gated decisions passes');
+    const rows = await storage.getBySubsystem('plansub');
+    const deferred = rows.filter((r) => r.concept === 'd');
+    assert.equal(deferred.length, 1, 'the tail decision must be deferred into the ledger for recall');
+    assert.equal(deferred[0].attempts, 0, 'a deferred decision has not been examined yet');
+    await storage.close();
+  } finally {
+    process.env.RECKON_GRADER_CMD = prev;
+  }
+});
+
 test('recall: a due item surfaces metadata-only (no stored explanation leaked)', async () => {
   const storage = new Storage();
   await storage.init();
   const loop = new ComprehensionLoop(storage);
 
-  const opened = loop.open({ concept: 'x', subsystem: 'due-sub', stage: 'build', groundTruth: 'gt', sessionId: 's' });
+  const opened = await loop.open({ concept: 'x', subsystem: 'due-sub', stage: 'build', groundTruth: 'gt', sessionId: 's' });
   await loop.submit(opened.id, 'some explanation', false);
   // Force it due.
   const all = await storage.getBySubsystem('due-sub');

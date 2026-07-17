@@ -1,8 +1,18 @@
 import crypto from 'crypto';
 import { Storage, ExplanationRecord, Stage, RecallOutcome, scheduleAfterGrade, scheduleAfterRecall } from './storage.js';
-import { grade } from './grader.js';
-import { elicitPrompt, retryPrompt, recallPrompt } from './elicit.js';
+import { grade, gradePlan } from './grader.js';
+import { elicitPrompt, planElicitPrompt, retryPrompt, recallPrompt } from './elicit.js';
+import { decompose, Decision } from './decompose.js';
 import { RigorLevel } from './rubric.js';
+
+// Cap on how many decisions we gate in one plan checkpoint (the rest defer to recall).
+const MAX_GATED = Math.max(1, Number(process.env.RECKON_MAX_DECISIONS || 3));
+
+function deferInDays(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString();
+}
 
 /**
  * The comprehension loop engine (Reckon v5).
@@ -23,6 +33,11 @@ interface OpenCheckpoint {
   rigor: RigorLevel;
   attempts: number;
   sessionId: string;
+  // Plan checkpoints (v5.1): a decomposed plan gates the top decisions now and
+  // defers the tail to recall.
+  isPlan?: boolean;
+  gated?: Decision[];
+  deferred?: Decision[];
 }
 
 export interface OpenResult {
@@ -47,17 +62,30 @@ export class ComprehensionLoop {
   private open_: Map<string, OpenCheckpoint> = new Map();
   constructor(private storage: Storage) {}
 
-  /** Open an explanation checkpoint. Returns the mechanism-elicitation prompt. */
-  open(input: {
+  /** Open an explanation checkpoint. Returns the mechanism-elicitation prompt.
+   *  For a plan (stage="plan") with more than one load-bearing decision, decomposes it,
+   *  gates the top MAX_GATED, and defers the tail to recall. */
+  async open(input: {
     concept: string;
     subsystem: string;
     stage: Stage;
     groundTruth: string;
     rigor?: RigorLevel;
     sessionId: string;
-  }): OpenResult {
+  }): Promise<OpenResult> {
     const id = crypto.randomUUID();
     const rigor: RigorLevel = input.rigor === 'harsh' ? 'harsh' : 'medium'; // floor at medium
+
+    if (input.stage === 'plan') {
+      const d = await decompose(input.groundTruth);
+      if (d.ok && d.decisions.length > 1) {
+        const gated = d.decisions.slice(0, MAX_GATED);
+        const deferred = d.decisions.slice(MAX_GATED);
+        this.open_.set(id, { ...input, id, rigor, attempts: 0, isPlan: true, gated, deferred });
+        return { id, prompt: planElicitPrompt(input.subsystem, gated, deferred.length), stage: input.stage, rigor };
+      }
+    }
+    // single-decision path (build stage, or a plan that decomposed to 0-1 decisions)
     this.open_.set(id, { ...input, id, rigor, attempts: 0 });
     return {
       id,
@@ -72,6 +100,8 @@ export class ComprehensionLoop {
     const cp = this.open_.get(id);
     if (!cp) return null;
     cp.attempts += 1;
+
+    if (cp.isPlan) return this.submitPlan(cp, explanation, assisted);
 
     const g = await grade({ groundTruth: cp.groundTruth, explanation, rigor: cp.rigor, assisted });
 
@@ -127,6 +157,52 @@ export class ComprehensionLoop {
       assisted,
       ungraded: g.ungraded,
       next_recall_due: next_due,
+    };
+  }
+
+  /** Grade a plan explanation covering the gated decisions; on pass, defer the tail to recall. */
+  private async submitPlan(cp: OpenCheckpoint, explanation: string, assisted: boolean): Promise<GradeResultOut> {
+    const g = await gradePlan({ groundTruth: cp.groundTruth, explanation, rigor: cp.rigor, decisions: cp.gated || [] });
+    if (!g.pass) {
+      return {
+        pass: false,
+        prompt: retryPrompt(g.hole, assisted),
+        feedback: g.ungraded ? 'plan grader unavailable — passing ungraded' : `not yet — ${g.missing.length} decision(s) still need real mechanism`,
+        scores: {},
+        overlap: 'unknown',
+        assisted,
+        ungraded: g.ungraded,
+      };
+    }
+    const next_due = g.ungraded ? undefined : scheduleAfterGrade(true, assisted);
+    await this.storage.add({
+      id: cp.id, timestamp: new Date().toISOString(), session_id: cp.sessionId,
+      subsystem: cp.subsystem, concept: cp.concept, stage: 'plan', ground_truth: cp.groundTruth,
+      explanation, rigor: cp.rigor, assisted, passed: true, ungraded: g.ungraded,
+      scores: JSON.stringify({ covered: g.covered }), overlap: 'unknown', attempts: cp.attempts,
+      next_recall_due: next_due, recall_count: 0,
+    });
+    // Defer the tail decisions into the recall queue: coverage over time, not lost.
+    let deferredCount = 0;
+    if (!g.ungraded) {
+      for (const d of cp.deferred || []) {
+        await this.storage.add({
+          id: crypto.randomUUID(), timestamp: new Date().toISOString(), session_id: cp.sessionId,
+          subsystem: cp.subsystem, concept: d.concept, stage: 'plan',
+          ground_truth: `${d.summary}\n\n${d.question}`, explanation: '', rigor: cp.rigor,
+          assisted: false, passed: false, ungraded: false, scores: '{}', overlap: 'unknown',
+          attempts: 0, next_recall_due: deferInDays(1), recall_count: 0,
+        });
+        deferredCount++;
+      }
+    }
+    this.open_.delete(cp.id);
+    return {
+      pass: true,
+      feedback: g.ungraded
+        ? '○ Plan logged ungraded (grader unavailable).'
+        : `✓ Passed — explained ${g.covered.length} load-bearing decision(s); ${deferredCount} deferred to cold recall.`,
+      scores: {}, overlap: 'unknown', assisted, ungraded: g.ungraded, next_recall_due: next_due,
     };
   }
 
