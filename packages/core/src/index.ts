@@ -25,7 +25,7 @@ export type { RigorLevel, Dimension } from './rubric.js';
 export { elicitPrompt, planElicitPrompt, retryPrompt, recallPrompt } from './elicit.js';
 export type { ElicitInput } from './elicit.js';
 
-export { SqliteStore, scheduleAfterGrade, scheduleAfterRecall } from './storage.js';
+export { scheduleAfterGrade, scheduleAfterRecall } from './storage.js';
 export type { Storage, ExplanationRecord, Stage, RecallOutcome } from './storage.js';
 
 export type { LlmBackend } from './llm.js';

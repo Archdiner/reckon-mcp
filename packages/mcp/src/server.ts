@@ -2,7 +2,8 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { SqliteStore, ComprehensionLoop } from '@reckon/core';
+import { ComprehensionLoop } from '@reckon/core';
+import { SqliteStore } from './sqlite-store.js';
 import { Classifier } from './classifier.js';
 import { ClaudeCliBackend } from './claude-cli-backend.js';
 import { grantClearance } from './clearance.js';

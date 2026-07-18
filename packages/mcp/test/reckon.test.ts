@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import { SqliteStore, ComprehensionLoop, scheduleAfterGrade, scheduleAfterRecall, gatePasses, DIMENSIONS, elicitPrompt } from '@reckon/core';
+import { ComprehensionLoop, scheduleAfterGrade, scheduleAfterRecall, gatePasses, DIMENSIONS, elicitPrompt } from '@reckon/core';
+import { SqliteStore } from '../src/sqlite-store.js';
 import { ClaudeCliBackend } from '../src/claude-cli-backend.js';
 
 // The injected model backend. In these unit tests it is pointed at a mock CLI (or a
