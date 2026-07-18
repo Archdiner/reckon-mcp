@@ -40,7 +40,7 @@ The grader runs in a separate process on a different model than the one that wro
 
 ## Status
 
-This is experimental and early. It works, it is tested, and it is deployed for the author, but it has not yet been used across many real sessions by many people. That is what this release is for. Expect rough edges. The grader adds real latency, often 30 to 60 seconds per grade, because it spawns a separate model call. The decision triggers are soft, not hard (see Limitations).
+This is experimental and early. It works, it is tested, and it is deployed for the author, but it has not yet been used across many real sessions by many people. That is what this release is for. Expect rough edges. The grader adds real latency, often 30 to 60 seconds per grade, because it spawns a separate model call. In Mode A the triggers are hard gates: a comprehension checkpoint blocks the build until you pass it, even under `--dangerously-skip-permissions` (see Limitations for what it does not yet cover).
 
 ## Requirements
 
@@ -61,11 +61,19 @@ npm run deploy
 `npm run deploy` does the following, and backs up anything it touches first:
 
 - builds the server and copies it to `~/.reckon`
-- points `~/.reckon/.mcp.json` at the built server
+- registers the reckon MCP server at **user scope**, so Claude Code loads it in every project
 - installs the hooks into `~/.reckon/hooks`
-- migrates the `hooks` block of `~/.claude/settings.json` to the Reckon wiring, preserving every other setting
+- merges Reckon's hooks into `~/.claude/settings.json`, preserving every other hook and setting
 
-Restart Claude Code afterward so it loads the server and the hooks.
+If `claude` was on your PATH during deploy, registration is already done. If it wasn't, or
+the `reckon_*` tools don't show up, run this once in your terminal:
+
+```bash
+claude mcp add reckon -s user -- node "$HOME/.reckon/dist/server.js"
+```
+
+Restart Claude Code afterward so it loads the server and the hooks. Confirm it worked with
+`claude mcp list` (reckon should read `✔ Connected`).
 
 To undo a deploy, restore the `.bak-*` files it created (in `~/.reckon` and `~/.claude`).
 
@@ -73,8 +81,9 @@ To undo a deploy, restore the `.bak-*` files it created (in `~/.reckon` and `~/.
 
 Once installed, the agent calls Reckon on its own at decision points. You do not have to invoke anything. In practice:
 
-- When you approve a plan and the agent leaves plan mode, a hook reminds it to run the comprehension check before building. A plan is first grouped into 2 to 4 coherent sub-problems (data layer, auth, infrastructure, and so on). You give one explanation covering all of them, and the grader requires the mechanism of each, so a partial answer fails. This covers the whole plan in one bounded explanation, rather than either one overwhelming "explain everything" prompt that a partial answer could pass, or many separate asks.
-- When the agent makes a load-bearing call mid-session, a standing instruction nudges it to flag that call the same way.
+- When you approve a plan and the agent leaves plan mode, a hook blocks the build until you pass the comprehension check. A plan is first grouped into 2 to 4 coherent sub-problems (data layer, auth, infrastructure, and so on). You give one explanation covering all of them, and the grader requires the mechanism of each, so a partial answer fails. This covers the whole plan in one bounded explanation, rather than either one overwhelming "explain everything" prompt that a partial answer could pass, or many separate asks.
+- When the agent builds directly (a plan dumped as prose, no plan mode), a second hook blocks the first load-bearing write into a subsystem (a new dependency, or accumulated churn past a threshold) until you pass the check for it. That is what catches an autonomous session that never enters plan mode.
+- Both gates hold even under `--dangerously-skip-permissions`: the hooks run before the permission-mode check, so bypassing the prompt does not bypass the checkpoint.
 
 The tools the server exposes:
 
@@ -106,19 +115,20 @@ If the grader cannot run for any reason, it fails open: your explanation is logg
 
 Worth being honest about:
 
-- The triggers are soft. The plan-gate hook fires on the "leaving plan mode" signal, which is reliable for planned work. But a session where you just say "proceed" and never enter plan mode has no such signal, so the agent can skip the check. Hardening this to a hard gate is future work.
+- Coverage has gaps. Mode A hard-gates two signatures: leaving plan mode, and writes via Edit/Write/MultiEdit (including a plan dumped as prose and built directly, which the plan-gate alone would miss). It does not yet cover file writes made through `Bash` heredocs or `NotebookEdit`, so a determined agent can still route around it. Closing those paths is future work.
 - Grading is slow. Each grade spawns a separate model call, so budget roughly 30 to 60 seconds. A plan checkpoint is slower still (around 90 seconds), because it runs a decomposition pass and then a grading pass.
 - The grader is a model, not an oracle. It is good at catching restatement and missing mechanism, but it is not perfect.
 
 ## The research behind it
 
-Reckon is not a vibe. Each piece traces to a specific finding:
-
-- Self-explanation effect. Chi, Bassok, Lewis, Reimann, Glaser (1989), and Chi, De Leeuw, Chiu, LaVancher (1994). Explaining to yourself improves understanding, and the quality signal is inference beyond the given, not restatement.
-- Illusion of explanatory depth. Rozenblit and Keil (2002). People overrate their understanding until asked to produce the mechanism. This is why Reckon asks for mechanism, not procedure.
-- Mechanistic reasoning. Russ, Scherr, Hammer, Mikeska (2008). A real explanation names entities, their activities, and the causal chain.
-- SOLO taxonomy. Biggs and Collis (1982). The line between listing correct facts and connecting them into a whole. Reckon scores coverage and integration separately for this reason.
-- LLM-as-judge practice. Zheng et al. (2023) and Liu et al. G-Eval (2023). Reference-guided judging, reasoning before scoring, and not letting the author grade its own work.
+- [Chi, De Leeuw, Chiu, LaVancher (1994): Eliciting self-explanations improves understanding](https://doi.org/10.1207/s15516709cog1803_3)
+- [Rozenblit and Keil (2002): The illusion of explanatory depth](https://doi.org/10.1207/s15516709cog2605_1)
+- [Russ, Scherr, Hammer, Mikeska (2008): Recognizing mechanistic reasoning](https://doi.org/10.1002/sce.20264)
+- [Roediger and Karpicke (2006): Test-enhanced learning](https://doi.org/10.1111/j.1467-9280.2006.01693.x)
+- [Biggs and Collis (1982): SOLO taxonomy](https://www.johnbiggs.com.au/academic/solo-taxonomy/)
+- [Zheng et al. (2023): Judging LLM-as-a-judge (MT-Bench)](https://arxiv.org/abs/2306.05685)
+- [Liu et al. (2023): G-Eval](https://arxiv.org/abs/2303.16634)
+- [Kazemitabaar et al. (2024): Explain-before-Usage: LLM-graded code explanation](https://arxiv.org/abs/2410.08922)
 
 The full design rationale is in [reckon-design-doc-v5.md](reckon-design-doc-v5.md).
 
@@ -132,20 +142,6 @@ npm test        # unit tests
 ```
 
 The grader model can be overridden with `RECKON_GRADER_MODEL`. The ledger location can be moved with `RECKON_HOME` (used by the tests so they never touch your real data).
-
-## Testing
-
-Reckon was battle-tested before this release. Results:
-
-- Unit tests: 10 of 10 pass (loop mechanics, recall scheduling, the rigor floor, ungraded handling).
-- Grader efficacy: on a 16-case battery of good versus slop explanations, the grader was correct 15 times, with zero false passes and zero false failures. Every slop type (restatement, confident-but-wrong, names-the-parts-no-mechanism, verbose fluent filler, verbatim parroting) was caught by the correct rubric gate.
-- Full loop, end to end: 13 of 13 branch checks pass through the live server, covering pass, fail, assisted rescue scheduled sooner than a clean pass, medium versus harsh rigor, plan stage, input validation, and metadata-only recall with no source leak.
-- Hooks and integration: 22 of 22 pass. A real headless `claude -p` session loads the server and sees the tools.
-- Adversarial: prompt injection, including explanations that contained a fully-formed fake grader verdict, did not flip a single grade. SQL injection payloads were stored as inert literals. Fail-open is loud, never a silent fake pass.
-
-Two low-severity bugs were found and fixed before release: missing input validation on `reckon_explain`, and an ungraded fail-open pass being written to the ledger as if it had been graded.
-
-Known rough edges that are not fixed yet: grading latency is real (a live grade measured 58 seconds), and a session where you just say "proceed" without entering plan mode can still skip the check, because the triggers are soft rather than hard.
 
 ## License
 

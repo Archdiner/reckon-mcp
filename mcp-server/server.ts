@@ -62,6 +62,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           stage: { type: 'string', enum: ['plan', 'build'], description: 'plan = before building; build = after a change' },
           ground_truth: { type: 'string', description: 'The plan or the diff — the reference the explanation is graded against' },
           rigor: { type: 'string', enum: ['medium', 'harsh'], description: 'medium (floor, default) | harsh (opt-in, stricter)' },
+          gate_key: {
+            type: 'string',
+            description:
+              'The opaque clearance key from a Reckon gate DENY message (Mode A). Pass it back EXACTLY. ' +
+              'On a PASS the gate clears and the blocked write/plan may proceed. Omit for a proactive, ' +
+              'non-gated checkpoint.',
+          },
         },
         required: ['concept', 'subsystem', 'stage', 'ground_truth'],
       },
@@ -129,7 +136,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'reckon_explain': {
-        const { concept, subsystem, stage, ground_truth, rigor } = args as any;
+        const { concept, subsystem, stage, ground_truth, rigor, gate_key } = args as any;
         // Enforce required fields (adversarial finding F1: MCP does not validate
         // `required`, and a missing ground_truth silently guts the reference-guided grade).
         const missing = ['concept', 'subsystem', 'stage', 'ground_truth'].filter(
@@ -138,7 +145,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (missing.length) throw new Error(`reckon_explain missing required field(s): ${missing.join(', ')}`);
         if (stage !== 'plan' && stage !== 'build') throw new Error(`stage must be "plan" or "build", got: ${stage}`);
         const gt = ground_truth.includes('\n+') || ground_truth.startsWith('+') ? addedLines(ground_truth) || ground_truth : ground_truth;
-        const r = await loop.open({ concept, subsystem, stage, groundTruth: gt, rigor, sessionId: currentSessionId });
+        const r = await loop.open({
+          concept,
+          subsystem,
+          stage,
+          groundTruth: gt,
+          rigor,
+          sessionId: currentSessionId,
+          gateKey: typeof gate_key === 'string' && gate_key.trim() ? gate_key.trim() : undefined,
+        });
         return text(r);
       }
       case 'reckon_grade': {

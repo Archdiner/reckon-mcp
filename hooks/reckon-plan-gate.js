@@ -1,42 +1,38 @@
 #!/usr/bin/env node
-// Reckon v5 — plan-gate SIGNATURE hook (the key mechanic). PreToolUse on ExitPlanMode.
+// Reckon v5.2 — plan-gate (HARDENED). PreToolUse on ExitPlanMode.
 //
-// The insight (from v0's signature-gate.js): don't rely on the agent introspecting
-// whether it's making a load-bearing decision — hook the SIGNATURE. ExitPlanMode IS
-// that signature: a plan is approved and about to be BUILT. That is the prior,
-// right-grained, load-bearing decision moment. So on this tool call we inject a strong
-// instruction to run the comprehension loop on the plan BEFORE building.
+// ExitPlanMode is the signature of "a plan is approved and about to be built" — the
+// prior, right-grained, load-bearing moment. v5.1 was SOFT here (inject-and-allow),
+// which is why a real plan could sail through. v5.2 HARD-denies the exit until the
+// plan has been explained + graded (clearance written under the plan gate_key).
 //
-// v1 is SOFT (inject-and-allow — test before hardening to a sentinel-based deny, the
-// way signature-gate.js gates reckon_fork). Fails open on any error.
-let stdin = '';
-try {
-  process.stdin.setEncoding('utf8');
-  process.stdin.on('data', (d) => (stdin += d));
-} catch {}
+// Complements the write-gate: this catches the PLAN-MODE route at plan time; the
+// write-gate catches the prose-plan / bypass-permissions route at build time. Between
+// them, every build path funnels through one comprehension checkpoint.
+//
+// Fails open on any error — a hook must never wedge the session.
+const lib = require('./reckon-lib.js');
 
-let done = false;
-function emit() {
-  if (done) return;
-  done = true;
+lib.readInput((input) => {
   try {
-    const reason =
-      'RECKON: this plan is a load-bearing decision about to be built. Before you build, ' +
-      'call reckon_explain(stage="plan", ground_truth=<the plan you just presented>, ' +
-      'concept, subsystem) so the human explains the plan back and the isolated grader ' +
-      'verifies they understand it. Proceed to build only after it passes (or they opt out).';
-    process.stdout.write(
-      JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: 'PreToolUse',
-          additionalContext: reason,
-        },
-      })
+    if (!lib.isModeAEnabled()) return lib.allow();
+    const root = lib.repoRoot(input.cwd);
+    const key = lib.planGateKey(root);
+    if (lib.isCleared(key)) return lib.allow(); // plan already explained this session
+
+    return lib.deny(
+      `RECKON (Mode A): this plan is a load-bearing decision about to be built. Before ` +
+        `you exit plan mode, call the reckon_explain MCP tool:\n` +
+        `  stage:        "plan"\n` +
+        `  subsystem:    <the area this plan touches>\n` +
+        `  concept:      <short slug for the plan>\n` +
+        `  ground_truth: <the full plan you just presented, verbatim>\n` +
+        `  gate_key:     "${key}"   ← REQUIRED. Pass this EXACT string; do not paraphrase it.\n` +
+        `Put the returned prompt to the HUMAN, take THEIR explanation, call reckon_grade. ` +
+        `On a PASS the gate clears and you may retry ExitPlanMode. The human explains the ` +
+        `mechanism — you may not answer for them.`
     );
   } catch {
-    /* fail open — emit nothing, tool proceeds normally */
+    return lib.allow();
   }
-}
-
-process.stdin.on('end', emit);
-setTimeout(emit, 250);
+});

@@ -51,8 +51,27 @@ cat > "$DEST/.mcp.json" <<JSON
 }
 JSON
 
+# 4b. Register the server at USER scope so Claude Code loads it in EVERY project.
+#     The ~/.reckon/.mcp.json above is project-scoped — it only loads when Claude
+#     Code is launched from ~/.reckon, which is never how the tool is used. Without
+#     this step the reckon_* tools never appear in a user's own projects.
+REGISTER_CMD="claude mcp add reckon -s user -- node \"$DEST/dist/server.js\""
+if command -v claude >/dev/null 2>&1; then
+  echo "→ registering reckon MCP server (user scope)"
+  claude mcp remove reckon -s user >/dev/null 2>&1 || true
+  if claude mcp add reckon -s user -- node "$DEST/dist/server.js" >/dev/null 2>&1; then
+    echo "  ✓ registered (user scope)"
+  else
+    echo "  ⚠ auto-register failed — run this once yourself:"
+    echo "    $REGISTER_CMD"
+  fi
+else
+  echo "⚠ 'claude' not on PATH — after install, run this once yourself:"
+  echo "    $REGISTER_CMD"
+fi
+
 # 5. Migrate ~/.claude/settings.json hooks to the v5 wiring (backs up first,
-#    preserves every non-hooks key, retires the stale hooks.json orphan).
+#    merges Reckon's hooks, preserves every other key and hook).
 echo "→ migrating ~/.claude/settings.json hooks"
 RECKON_HOME="$DEST" node "$SRC/migrate-settings.mjs"
 

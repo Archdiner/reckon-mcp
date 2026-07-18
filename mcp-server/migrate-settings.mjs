@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// Reckon v5 — settings migration. Surgically rewrites the `hooks` block of
-// ~/.claude/settings.json to the v5 wiring, PRESERVING every other key (model,
-// plugins, outputStyle, weekly-review, etc.). Backs up before writing. Also retires
-// the stale ~/.claude/hooks.json orphan (backed up, then removed).
+// Reckon v5 — settings migration. MERGES Reckon's two hooks into the `hooks` block
+// of ~/.claude/settings.json, PRESERVING every other key AND every hook the user
+// already has (their own SessionStart, PreToolUse, etc. are left untouched). Backs
+// up before writing. Also retires the stale ~/.claude/hooks.json orphan.
 //
-// Safe by construction: reads + parses first, backs up, only rewrites `hooks`.
+// Safe by construction: reads + parses first, backs up, only touches Reckon's own
+// hook entries — never clobbers unrelated wiring, and injects nothing personal.
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -17,24 +18,42 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 
 const node = (cmd) => ({ type: 'command', command: `node ${cmd}` });
 
-// The v5 hook wiring. Everything else in settings.json is preserved untouched.
-const v5Hooks = {
-  PreToolUse: [
-    {
-      // ExitPlanMode = the SIGNATURE of "a plan is approved and about to be built" —
-      // the prior, load-bearing decision moment. Reliable, no introspection needed.
-      matcher: 'ExitPlanMode',
-      hooks: [node(path.join(RECKON, 'hooks', 'reckon-plan-gate.js'))],
-    },
-  ],
-  UserPromptSubmit: [
-    { hooks: [node(path.join(RECKON, 'hooks', 'reckon-flag-nudge.js'))] },
-  ],
-  // Preserve the (non-reckon) weekly-review SessionStart hook; drop v0 recall-hook.
-  SessionStart: [{ hooks: [node(path.join(RECKON, 'weekly-review.js'))] }],
-  // Dropped from v0: Stop/stop-scan, PreToolUse hook.js + signature-gate (they
-  // gated the now-removed reckon_fork), UserPromptSubmit fork-guard.
-};
+const planGate = path.join(RECKON, 'hooks', 'reckon-plan-gate.js');
+const flagNudge = path.join(RECKON, 'hooks', 'reckon-flag-nudge.js');
+const writeGate = path.join(RECKON, 'hooks', 'reckon-write-gate.js');
+
+// True if a hook-group entry runs one of Reckon's own hook scripts. Used to strip
+// any prior Reckon entry (possibly at a stale path) before re-adding the current
+// one — keeps the merge idempotent without touching the user's other hooks.
+const isReckonEntry = (entry) =>
+  Array.isArray(entry?.hooks) &&
+  entry.hooks.some(
+    (h) => typeof h?.command === 'string' && /reckon-(plan-gate|flag-nudge|write-gate)\.js/.test(h.command),
+  );
+
+// Merge Reckon's hooks into an existing hooks object, preserving all non-Reckon
+// entries. Reckon owns exactly two: ExitPlanMode (PreToolUse) and flag-nudge
+// (UserPromptSubmit). SessionStart and everything else are left exactly as-is.
+function mergeReckonHooks(existing) {
+  const hooks = existing && typeof existing === 'object' ? { ...existing } : {};
+  hooks.PreToolUse = [
+    ...(Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : []).filter((e) => !isReckonEntry(e)),
+    // ExitPlanMode = the SIGNATURE of "a plan is approved and about to be built" —
+    // the prior, load-bearing decision moment. Reliable, no introspection needed.
+    { matcher: 'ExitPlanMode', hooks: [node(planGate)] },
+    // Write/Edit = the SECOND signature — catches a plan dumped as prose and built
+    // directly (no ExitPlanMode), the failure mode that ships unexplained under
+    // --dangerously-skip-permissions. Hooks still deny in bypass mode.
+    { matcher: 'Edit|Write|MultiEdit', hooks: [node(writeGate)] },
+  ];
+  hooks.UserPromptSubmit = [
+    ...(Array.isArray(hooks.UserPromptSubmit) ? hooks.UserPromptSubmit : []).filter(
+      (e) => !isReckonEntry(e),
+    ),
+    { hooks: [node(flagNudge)] },
+  ];
+  return hooks;
+}
 
 function backup(p) {
   if (fs.existsSync(p)) {
@@ -59,10 +78,11 @@ try {
 }
 const sBak = backup(settingsPath);
 const preservedKeys = Object.keys(settings).filter((k) => k !== 'hooks');
-settings.hooks = v5Hooks;
+settings.hooks = mergeReckonHooks(settings.hooks);
 fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
-console.error(`✓ settings.json hooks → v5 (backup: ${sBak})`);
+console.error(`✓ settings.json: merged Reckon hooks (backup: ${sBak})`);
 console.error(`  preserved keys: ${preservedKeys.join(', ')}`);
+console.error(`  preserved non-Reckon hooks (SessionStart, etc.) untouched`);
 
 // 2. Retire the stale hooks.json orphan.
 if (fs.existsSync(hooksJsonPath)) {
