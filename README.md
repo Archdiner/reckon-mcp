@@ -1,154 +1,222 @@
+<div align="center">
+
+```
+⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣤⡶⠾⠿⠿⠿⠿⠿⠿⠶⣦⣄⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⣿⠛⠻⢷⣦⣄⠀⠀⠀⢀⣤⡾⠛⠋⠀⠀⠀⠀⠀⠉⠛⢷⣦⡀⠀⠀⣠⣴⡾⠟⠻⣷⡄
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣿⣀⠀⠀⠈⠻⢿⣆⣴⡟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢻⣶⡾⠋⠁⠀⠠⣴⣿⠇
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠙⠻⢷⣤⣄⣀⣰⣿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠻⣷⣀⣠⣴⡾⠟⢁⣠⣤⣄
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠆⣿⠟⠻⢷⣶⣤⣍⣉⣉⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣄⣤⣀⣀⠀⠈⢿⣏⣉⣥⣴⣶⠿⠛⠉⣿⡆
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢿⣧⡀⠀⠀⠈⠉⠙⢻⣿⠀⠀⠀⠀⢠⣾⠿⠿⣷⡄⠀⠀⠘⠛⠛⠿⠀⠀⢸⣿⠛⠋⠀⠀⠀⣀⣴⠟
+⠀⠀⢀⣤⣶⣶⣦⣤⣀⠀⠀⠀⠀⠙⠻⣶⣶⣶⣶⣾⣿⡄⠀⢀⣠⣦⣭⠀⠀⢡⡄⠀⢀⣦⡄⠀⡟⠙⡆⢸⣿⣶⣶⣶⣶⠾⠟
+⠀⠀⣿⠏⠉⣀⣠⣙⣛⠿⠿⣶⣶⣤⣤⣤⣶⠾⢿⣧⠀⠈⠿⣼⡿⠁⠈⠿⣷⣦⣶⠿⠋⠙⠋⢀⣿⡿⣶⣦⣤⣤⣤
+⠀⠀⣿⡀⢸⣿⠉⠛⠛⠶⠶⣤⣭⣿⣿⣿⡟⠛⠉⠀⣸⣿⣧⡀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⣿⡀⠀⠈⠉⢉⣿⡧
+⠀⠀⢻⣷⡈⢿⣄⠀⠀⠀⠀⠈⠉⠉⠉⠙⠿⢶⣶⠶⠿⠋⠙⠿⣦⣄⠀⠀⠀⢀⣠⣶⠟⠁⠉⠻⠷⠶⠶⠿⠛⠁
+⠀⠀⠀⠙⣿⣄⠻⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣴⠟⠋⠁
+⠀⠀⠀⠀⠈⠙⣷⣬⣻⢶⣤⡀⠀⠀⠀⠀⠀⢀⣀⣤⣶⣾⡿⠋⠁
+⠀⠀⠀⠀⠀⠀⠉⠛⠿⣮⣝⣿⣶⣤⣶⣾⣿⣿⣿⣿⡆⠀⠀⣠⣶⡶⠶⢿⣿⠋
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡿⠁⣰⡟⣠⡿⠀⣾⠃⣸⠏⢠⡿⠸⣧⣴⠟
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣟⣠⣾⠏⢰⣿⣴⡿⠋⣿⣤⣤⡿
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠛⠉⠀⠈⠉⠉⠀⠀⠈⠉
+```
+
 # Reckon
 
-Reckon checks that you can actually explain what your AI coding agent built, before it ships.
+**you should be able to explain what your agent shipped**
 
-It is a Model Context Protocol (MCP) server for Claude Code. When the agent makes a load-bearing decision, Reckon asks you to explain it in your own words. A separate, isolated grader then checks that explanation against the real code. If you are just restating what you were shown, it says so and asks you to try again. Later, it asks you about the same decision again, cold, to check whether it actually stuck.
+`𓆝 𓆟 𓆞 𓆝 𓆟`
 
-The idea is simple: if you cannot explain what you shipped, you do not understand it, and you probably should not ship it yet.
+</div>
+
+<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
+
+Reckon is an MCP server for Claude Code. When your agent makes a load-bearing decision, it
+asks **you** to explain the mechanism in your own words. A separate, isolated grader checks
+that explanation against the real code. Restating what you were shown? It says so, and asks
+again. Weeks later it asks once more, **cold**, to see if it actually stuck.
+
+> If you cannot explain what you shipped, you do not understand it — and you probably should
+> not ship it yet.
+
+<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
+
+## The loop
+
+```
+  a decision gets made (by you, or the agent)
+        │
+        ▼
+  ① ELICIT   "why does this work, and what breaks if done differently?"
+             mechanism, not steps.
+        │
+        ▼
+  ② GRADE    a different, cheaper model - seeing ONLY the code + your words -
+             scores it and hands back the single biggest gap. not a report card.
+        │
+        ├──► pass ─────────────────────────────────┐
+        │                                           │
+        ▼ miss                                      │
+  ③ RESCUE   open the source, try again. that pass  │
+             is marked "assisted" and returns sooner │
+             (reading it off the page ≠ knowing it)  │
+        │                                           │
+        └──────────────┬────────────────────────────┘
+                       ▼
+  ④ RECALL   later, cold, source gone - it asks again.
+             THAT is the test of whether it stuck.
+```
+
+The grader runs in a **separate process, on a different model** than the one that wrote the
+code, and never sees the original chat. It can't rubber-stamp its own work, and it's cheap
+because it doesn't replay the session.
+
+<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
 
 ## Why
 
-AI agents make it easy to accept code you have not really understood. You read a plan, it looks right, you approve it, it gets built. This is the illusion of explanatory depth: you feel like you understand something until you are asked to explain the mechanism, and then the feeling collapses. Rozenblit and Keil measured this in 2002. Reckon is built on that finding.
-
-Most tools that try to help either explain the code to you, which you passively accept, or make you approve a diff, which does not test understanding at all. Reckon does the opposite. It makes you produce the explanation, and it grades it against the artifact.
-
-## How it works
-
 ```
-  you (or the agent) reach a decision
-        |
-        v
-  ELICIT   Reckon asks you to explain the mechanism, not the steps:
-           "why does this work, and what breaks if it were done differently?"
-        |
-        v
-  GRADE    a separate grader (a different, cheaper model that only sees the
-           code and your explanation) scores it against a rubric and returns
-           the single biggest gap, not a report card
-        |
-        v
-  RESCUE   if you miss, you can open the source and try again. that answer is
-           marked "assisted" and comes back sooner, because reading it off the
-           page is not the same as knowing it
-        |
-        v
-  RECALL   later, cold, with the source gone, Reckon asks you again. that is
-           the real test of whether it stuck
+  the trap    AI makes it easy to accept code you never understood. you read a
+              plan, it looks right, you approve, it ships.
+  the science illusion of explanatory depth (Rozenblit & Keil, 2002): you FEEL
+              like you understand - until asked for the mechanism, and it collapses.
+  the fix     most tools explain the code TO you (passive) or make you approve a
+              diff (tests nothing). Reckon makes you PRODUCE the explanation and
+              grades it against the artifact.
 ```
 
-The grader runs in a separate process on a different model than the one that wrote the code. It only sees the code and your explanation, never the original chat. That isolation is the point: it cannot rubber-stamp its own work, and it is cheap because it does not replay the whole session.
-
-## Status
-
-This is experimental and early. It works, it is tested, and it is deployed for the author, but it has not yet been used across many real sessions by many people. That is what this release is for. Expect rough edges. The grader adds real latency, often 30 to 60 seconds per grade, because it spawns a separate model call. The decision triggers are soft, not hard (see Limitations).
-
-## Requirements
-
-- Claude Code (the `claude` CLI), version 2.1 or later
-- Node.js 20 or later
-- A Claude subscription. The grader runs through `claude -p`, so it uses your existing Claude Code auth. No separate API key is needed.
+<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
 
 ## Install
+
+Needs Claude Code (`claude` CLI ≥ 2.1), Node ≥ 20, and a Claude subscription (the grader runs
+through `claude -p` on your existing auth — no API key).
 
 ```bash
 git clone https://github.com/Archdiner/reckon-mcp.git
 cd reckon-mcp
 npm install
 npm run build
-npm run deploy
+npm run deploy        # backs up anything it touches first
 ```
 
-`npm run deploy` does the following, and backs up anything it touches first:
+`deploy` builds the server into `~/.reckon`, points `.mcp.json` at it, installs the hooks,
+and migrates only the `hooks` block of `~/.claude/settings.json` (every other setting
+preserved). **Restart Claude Code** after. To undo: restore the `.bak-*` files it created.
 
-- builds the server and copies it to `~/.reckon`
-- points `~/.reckon/.mcp.json` at the built server
-- installs the hooks into `~/.reckon/hooks`
-- migrates the `hooks` block of `~/.claude/settings.json` to the Reckon wiring, preserving every other setting
+<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
 
-Restart Claude Code afterward so it loads the server and the hooks.
+## Using it
 
-To undo a deploy, restore the `.bak-*` files it created (in `~/.reckon` and `~/.claude`).
+You don't invoke anything — the agent calls Reckon at decision points on its own:
 
-## Usage
+```
+  approve a plan → leave plan mode   a hook reminds it to run the check first.
+                                     the plan is grouped into 2-4 sub-problems;
+                                     you give ONE explanation covering all, and
+                                     the grader demands the mechanism of each.
+  load-bearing call mid-session      a standing nudge makes it flag that too.
+```
 
-Once installed, the agent calls Reckon on its own at decision points. You do not have to invoke anything. In practice:
-
-- When you approve a plan and the agent leaves plan mode, a hook reminds it to run the comprehension check before building. A plan is first grouped into 2 to 4 coherent sub-problems (data layer, auth, infrastructure, and so on). You give one explanation covering all of them, and the grader requires the mechanism of each, so a partial answer fails. This covers the whole plan in one bounded explanation, rather than either one overwhelming "explain everything" prompt that a partial answer could pass, or many separate asks.
-- When the agent makes a load-bearing call mid-session, a standing instruction nudges it to flag that call the same way.
-
-The tools the server exposes:
-
-| Tool | What it does |
+| tool | what it does |
 |------|--------------|
-| `reckon_explain` | opens a checkpoint and returns the prompt to put to you |
+| `reckon_explain` | opens a checkpoint, returns the prompt to put to you |
 | `reckon_grade` | submits your explanation to the isolated grader |
-| `reckon_recall_due` | lists past explanations due for a cold recall check |
-| `reckon_recall_answer` | grades your cold-recall answer and reschedules |
+| `reckon_recall_due` | lists past explanations due for a cold recall |
+| `reckon_recall_answer` | grades your cold-recall answer, reschedules |
 | `classify` | decides whether a diff is worth a checkpoint |
 | `get_log` | reads your explanation history |
 
-### Rigor
+**Rigor** — two levels, no "easy" mode on purpose:
 
-There are two levels, and no "easy" mode on purpose:
+```
+  ● medium   the floor + default. the minimum bar that still teaches you. can't go below.
+  ▲ harsh    opt-in, stricter.
+```
 
-- `medium` is the floor and the default. The minimum bar that still teaches you something. You cannot go below it.
-- `harsh` is opt-in and stricter.
+The floor is the trick: tired and want to breeze through? the weakest option still holds a
+real bar. You can dial difficulty **up, never down to nothing.**
 
-The floor exists so that when you are tired and want to breeze through, the weakest option still holds a real bar. You can dial the difficulty up, never down to nothing.
+<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
 
-## How grading works, and privacy
+## Privacy
 
-The grader is a `claude -p` call on a small model (Haiku by default). It runs locally through your own Claude Code auth. It sees only the code snippet and your explanation. Your explanations and decision history live in a local SQLite file at `~/.reckon/reckon-v5.db` and never leave your machine. There is no server, no telemetry, no API key.
+```
+  grader     a claude -p call on a small model (Haiku), LOCAL, through your own auth
+  it sees    only the code snippet + your explanation. never the chat.
+  your data  explanations + history live in a local SQLite file (~/.reckon/reckon-v5.db)
+  leaves     nothing. no server, no telemetry, no API key.
+  outage     grader down → fails open LOUD: logged but clearly marked ungraded,
+             never blocks you, never fakes a pass.
+```
 
-If the grader cannot run for any reason, it fails open: your explanation is logged but clearly marked ungraded, so an outage never blocks you and never silently pretends to have graded.
+<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
 
-## Limitations
+## Honest limitations
 
-Worth being honest about:
+- **Soft triggers.** The plan-gate fires on the "leaving plan mode" signal. A session where
+  you just say "proceed" and never plan has no such signal, so the check can be skipped. A
+  hard gate is future work.
+- **Slow.** Each grade spawns a model call — budget ~30-60s. A plan checkpoint is ~90s
+  (decompose pass + grade pass).
+- **The grader is a model, not an oracle.** Great at catching restatement and missing
+  mechanism; not perfect.
 
-- The triggers are soft. The plan-gate hook fires on the "leaving plan mode" signal, which is reliable for planned work. But a session where you just say "proceed" and never enter plan mode has no such signal, so the agent can skip the check. Hardening this to a hard gate is future work.
-- Grading is slow. Each grade spawns a separate model call, so budget roughly 30 to 60 seconds. A plan checkpoint is slower still (around 90 seconds), because it runs a decomposition pass and then a grading pass.
-- The grader is a model, not an oracle. It is good at catching restatement and missing mechanism, but it is not perfect.
+<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
 
 ## The research behind it
 
-Reckon is not a vibe. Each piece traces to a specific finding:
+Reckon is not a vibe — each piece traces to a finding:
 
-- Self-explanation effect. Chi, Bassok, Lewis, Reimann, Glaser (1989), and Chi, De Leeuw, Chiu, LaVancher (1994). Explaining to yourself improves understanding, and the quality signal is inference beyond the given, not restatement.
-- Illusion of explanatory depth. Rozenblit and Keil (2002). People overrate their understanding until asked to produce the mechanism. This is why Reckon asks for mechanism, not procedure.
-- Mechanistic reasoning. Russ, Scherr, Hammer, Mikeska (2008). A real explanation names entities, their activities, and the causal chain.
-- SOLO taxonomy. Biggs and Collis (1982). The line between listing correct facts and connecting them into a whole. Reckon scores coverage and integration separately for this reason.
-- LLM-as-judge practice. Zheng et al. (2023) and Liu et al. G-Eval (2023). Reference-guided judging, reasoning before scoring, and not letting the author grade its own work.
+- **Self-explanation effect** — Chi et al. (1989, 1994): explaining to yourself builds
+  understanding, and the signal is inference *beyond* the given, not restatement.
+- **Illusion of explanatory depth** — Rozenblit & Keil (2002): people overrate understanding
+  until asked for mechanism. Why Reckon asks for mechanism, not procedure.
+- **Mechanistic reasoning** — Russ et al. (2008): a real explanation names entities, their
+  activities, and the causal chain.
+- **SOLO taxonomy** — Biggs & Collis (1982): listing facts ≠ connecting them. Reckon scores
+  coverage and integration separately.
+- **LLM-as-judge** — Zheng et al. (2023), Liu et al. G-Eval (2023): reference-guided,
+  reason-before-scoring, never let the author grade its own work.
 
-The full design rationale is in [reckon-design-doc-v5.md](reckon-design-doc-v5.md).
+Full rationale in [reckon-design-doc-v5.md](reckon-design-doc-v5.md).
+
+<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
+
+## Tested before release
+
+```
+  unit             10/10   loop mechanics · recall scheduling · rigor floor · ungraded
+  grader efficacy  15/16   0 false-pass, 0 false-fail across a 16-case good-vs-slop battery
+  full loop e2e    13/13   pass · fail · assisted-sooner · medium/harsh · plan · no-leak recall
+  hooks            22/22   a real headless claude -p loads the server and sees the tools
+  adversarial      held    injected fake verdicts flipped nothing; SQLi stored inert;
+                           fail-open is loud, never a silent fake pass
+```
+
+Two low-severity bugs were found and fixed pre-release (missing input validation on
+`reckon_explain`; an ungraded fail-open written to the ledger as if graded).
+
+<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
 
 ## Development
 
-This is an npm workspace: `@reckon/core` (the client-agnostic brain) and `@reckon/mcp` (the Claude Code host, including the hooks). Build and test from the repo root; the scripts fan out to both packages.
+An npm workspace: `@reckon/core` (the client-agnostic brain) and `@reckon/mcp` (the Claude
+Code host + hooks).
 
 ```bash
-cd reckon-mcp
 npm install
 npm run build
 npm test        # unit tests across all workspaces
 ```
 
-The grader model can be overridden with `RECKON_GRADER_MODEL`. The ledger location can be moved with `RECKON_HOME` (used by the tests so they never touch your real data).
+`RECKON_GRADER_MODEL` overrides the grader model. `RECKON_HOME` moves the ledger (tests use
+it so they never touch your real data).
 
-## Testing
+<div align="center">
 
-Reckon was battle-tested before this release. Results:
+⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖
 
-- Unit tests: 10 of 10 pass (loop mechanics, recall scheduling, the rigor floor, ungraded handling).
-- Grader efficacy: on a 16-case battery of good versus slop explanations, the grader was correct 15 times, with zero false passes and zero false failures. Every slop type (restatement, confident-but-wrong, names-the-parts-no-mechanism, verbose fluent filler, verbatim parroting) was caught by the correct rubric gate.
-- Full loop, end to end: 13 of 13 branch checks pass through the live server, covering pass, fail, assisted rescue scheduled sooner than a clean pass, medium versus harsh rigor, plan stage, input validation, and metadata-only recall with no source leak.
-- Hooks and integration: 22 of 22 pass. A real headless `claude -p` session loads the server and sees the tools.
-- Adversarial: prompt injection, including explanations that contained a fully-formed fake grader verdict, did not flip a single grade. SQL injection payloads were stored as inert literals. Fail-open is loud, never a silent fake pass.
+MIT — see [LICENSE](LICENSE)
 
-Two low-severity bugs were found and fixed before release: missing input validation on `reckon_explain`, and an ungraded fail-open pass being written to the ledger as if it had been graded.
+`𓆝 𓆟 𓆞 𓆝 𓆟`
 
-Known rough edges that are not fixed yet: grading latency is real (a live grade measured 58 seconds), and a session where you just say "proceed" without entering plan mode can still skip the check, because the triggers are soft rather than hard.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+</div>
