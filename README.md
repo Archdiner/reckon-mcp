@@ -1,29 +1,10 @@
 <div align="center">
 
-```
-⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣤⡶⠾⠿⠿⠿⠿⠿⠿⠶⣦⣄⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⣿⠛⠻⢷⣦⣄⠀⠀⠀⢀⣤⡾⠛⠋⠀⠀⠀⠀⠀⠉⠛⢷⣦⡀⠀⠀⣠⣴⡾⠟⠻⣷⡄
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣿⣀⠀⠀⠈⠻⢿⣆⣴⡟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢻⣶⡾⠋⠁⠀⠠⣴⣿⠇
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠙⠻⢷⣤⣄⣀⣰⣿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠻⣷⣀⣠⣴⡾⠟⢁⣠⣤⣄
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠆⣿⠟⠻⢷⣶⣤⣍⣉⣉⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣄⣤⣀⣀⠀⠈⢿⣏⣉⣥⣴⣶⠿⠛⠉⣿⡆
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢿⣧⡀⠀⠀⠈⠉⠙⢻⣿⠀⠀⠀⠀⢠⣾⠿⠿⣷⡄⠀⠀⠘⠛⠛⠿⠀⠀⢸⣿⠛⠋⠀⠀⠀⣀⣴⠟
-⠀⠀⢀⣤⣶⣶⣦⣤⣀⠀⠀⠀⠀⠙⠻⣶⣶⣶⣶⣾⣿⡄⠀⢀⣠⣦⣭⠀⠀⢡⡄⠀⢀⣦⡄⠀⡟⠙⡆⢸⣿⣶⣶⣶⣶⠾⠟
-⠀⠀⣿⠏⠉⣀⣠⣙⣛⠿⠿⣶⣶⣤⣤⣤⣶⠾⢿⣧⠀⠈⠿⣼⡿⠁⠈⠿⣷⣦⣶⠿⠋⠙⠋⢀⣿⡿⣶⣦⣤⣤⣤
-⠀⠀⣿⡀⢸⣿⠉⠛⠛⠶⠶⣤⣭⣿⣿⣿⡟⠛⠉⠀⣸⣿⣧⡀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⣿⡀⠀⠈⠉⢉⣿⡧
-⠀⠀⢻⣷⡈⢿⣄⠀⠀⠀⠀⠈⠉⠉⠉⠙⠿⢶⣶⠶⠿⠋⠙⠿⣦⣄⠀⠀⠀⢀⣠⣶⠟⠁⠉⠻⠷⠶⠶⠿⠛⠁
-⠀⠀⠀⠙⣿⣄⠻⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣴⠟⠋⠁
-⠀⠀⠀⠀⠈⠙⣷⣬⣻⢶⣤⡀⠀⠀⠀⠀⠀⢀⣀⣤⣶⣾⡿⠋⠁
-⠀⠀⠀⠀⠀⠀⠉⠛⠿⣮⣝⣿⣶⣤⣶⣾⣿⣿⣿⣿⡆⠀⠀⣠⣶⡶⠶⢿⣿⠋
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡿⠁⣰⡟⣠⡿⠀⣾⠃⣸⠏⢠⡿⠸⣧⣴⠟
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣟⣠⣾⠏⢰⣿⣴⡿⠋⣿⣤⣤⡿
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠛⠉⠀⠈⠉⠉⠀⠀⠈⠉
-```
-
 # Reckon
 
 **you should be able to explain what your agent shipped**
 
-`𓆝 𓆟 𓆞 𓆝 𓆟`
+
 
 </div>
 
@@ -34,10 +15,10 @@ asks **you** to explain the mechanism in your own words. A separate, isolated gr
 that explanation against the real code. Restating what you were shown? It says so, and asks
 again. Weeks later it asks once more, **cold**, to see if it actually stuck.
 
-> If you cannot explain what you shipped, you do not understand it — and you probably should
+> If you cannot explain what you shipped, you do not understand it - and you probably should
 > not ship it yet.
 
-<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
+<div align="center"> 𓆝 𓆟 𓆞 𓆝 𓆟 </div>
 
 ## The loop
 
@@ -76,14 +57,16 @@ because it doesn't replay the session.
 ```
   the trap    AI makes it easy to accept code you never understood. you read a
               plan, it looks right, you approve, it ships.
+              
   the science illusion of explanatory depth (Rozenblit & Keil, 2002): you FEEL
               like you understand - until asked for the mechanism, and it collapses.
+              
   the fix     most tools explain the code TO you (passive) or make you approve a
               diff (tests nothing). Reckon makes you PRODUCE the explanation and
               grades it against the artifact.
 ```
 
-<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
+<div align="center">𓆝 𓆟 𓆞 𓆝 𓆟 </div>
 
 ## Install
 
@@ -106,7 +89,7 @@ preserved). **Restart Claude Code** after. To undo: restore the `.bak-*` files i
 
 ## Using it
 
-You don't invoke anything — the agent calls Reckon at decision points on its own:
+You don't invoke anything, the agent calls Reckon at decision points on its own:
 
 ```
   approve a plan → leave plan mode   a hook reminds it to run the check first.
@@ -135,7 +118,7 @@ You don't invoke anything — the agent calls Reckon at decision points on its o
 The floor is the trick: tired and want to breeze through? the weakest option still holds a
 real bar. You can dial difficulty **up, never down to nothing.**
 
-<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
+<div align="center">𓆝 𓆟 𓆞 𓆝 𓆟</div>
 
 ## Privacy
 
@@ -155,16 +138,16 @@ real bar. You can dial difficulty **up, never down to nothing.**
 - **Soft triggers.** The plan-gate fires on the "leaving plan mode" signal. A session where
   you just say "proceed" and never plan has no such signal, so the check can be skipped. A
   hard gate is future work.
-- **Slow.** Each grade spawns a model call — budget ~30-60s. A plan checkpoint is ~90s
+- **Slow.** Each grade spawns a model call, budget ~30-60s. A plan checkpoint is ~90s
   (decompose pass + grade pass).
 - **The grader is a model, not an oracle.** Great at catching restatement and missing
   mechanism; not perfect.
 
-<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
+<div align="center">𓆝 𓆟 𓆞 𓆝 𓆟</div>
 
 ## The research behind it
 
-Reckon is not a vibe — each piece traces to a finding:
+Each piece of Reckon traces to a finding:
 
 - **Self-explanation effect** — Chi et al. (1989, 1994): explaining to yourself builds
   understanding, and the signal is inference *beyond* the given, not restatement.
@@ -178,22 +161,6 @@ Reckon is not a vibe — each piece traces to a finding:
   reason-before-scoring, never let the author grade its own work.
 
 Full rationale in [reckon-design-doc-v5.md](reckon-design-doc-v5.md).
-
-<div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
-
-## Tested before release
-
-```
-  unit             11/11   loop mechanics · recall scheduling · rigor floor · ungraded
-  grader efficacy  15/16   0 false-pass, 0 false-fail across a 16-case good-vs-slop battery
-  full loop e2e    13/13   pass · fail · assisted-sooner · medium/harsh · plan · no-leak recall
-  hooks            22/22   a real headless claude -p loads the server and sees the tools
-  adversarial      held    injected fake verdicts flipped nothing; SQLi stored inert;
-                           fail-open is loud, never a silent fake pass
-```
-
-Two low-severity bugs were found and fixed pre-release (missing input validation on
-`reckon_explain`; an ungraded fail-open written to the ledger as if graded).
 
 <div align="center">⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖</div>
 
