@@ -184,7 +184,7 @@ Full rationale in [reckon-design-doc-v5.md](reckon-design-doc-v5.md).
 ## Tested before release
 
 ```
-  unit             10/10   loop mechanics · recall scheduling · rigor floor · ungraded
+  unit             11/11   loop mechanics · recall scheduling · rigor floor · ungraded
   grader efficacy  15/16   0 false-pass, 0 false-fail across a 16-case good-vs-slop battery
   full loop e2e    13/13   pass · fail · assisted-sooner · medium/harsh · plan · no-leak recall
   hooks            22/22   a real headless claude -p loads the server and sees the tools
