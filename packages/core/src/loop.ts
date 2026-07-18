@@ -4,7 +4,7 @@ import { grade, gradePlan } from './grader.js';
 import { elicitPrompt, planElicitPrompt, retryPrompt, recallPrompt } from './elicit.js';
 import { decompose, Decision } from './decompose.js';
 import { RigorLevel } from './rubric.js';
-import { grantClearance } from './clearance.js';
+import { LlmBackend } from './llm.js';
 
 // Safety cap on clusters gated in one plan checkpoint. decompose() returns 2-4 coherent
 // sub-problems and we gate ALL of them in one combined grade (no deferral); this is just
@@ -30,9 +30,6 @@ interface OpenCheckpoint {
   rigor: RigorLevel;
   attempts: number;
   sessionId: string;
-  // Mode A hardening (v5.2): the opaque clearance key from the gate DENY message.
-  // On a PASS we write a clearance under it so the blocked write/plan may proceed.
-  gateKey?: string;
   // Plan checkpoints (v5.1): a decomposed plan gates the top decisions now and
   // defers the tail to recall.
   isPlan?: boolean;
@@ -60,7 +57,9 @@ export interface GradeResultOut {
 
 export class ComprehensionLoop {
   private open_: Map<string, OpenCheckpoint> = new Map();
-  constructor(private storage: Storage) {}
+  // The model backend is injected (grader + decompose call it). Core never spawns a
+  // process or names a provider; the host wires a ClaudeCliBackend / OpenAiBackend here.
+  constructor(private storage: Storage, private backend: LlmBackend) {}
 
   /** Open an explanation checkpoint. Returns the mechanism-elicitation prompt.
    *  For a plan (stage="plan") with more than one load-bearing decision, decomposes it,
@@ -72,13 +71,12 @@ export class ComprehensionLoop {
     groundTruth: string;
     rigor?: RigorLevel;
     sessionId: string;
-    gateKey?: string;
   }): Promise<OpenResult> {
     const id = crypto.randomUUID();
     const rigor: RigorLevel = input.rigor === 'harsh' ? 'harsh' : 'medium'; // floor at medium
 
     if (input.stage === 'plan') {
-      const d = await decompose(input.groundTruth);
+      const d = await decompose(input.groundTruth, this.backend);
       if (d.ok && d.decisions.length > 1) {
         // Gate ALL clusters (decompose bounds to 2-4); no deferral. The whole plan is
         // covered in one combined grade.
@@ -105,7 +103,7 @@ export class ComprehensionLoop {
 
     if (cp.isPlan) return this.submitPlan(cp, explanation, assisted);
 
-    const g = await grade({ groundTruth: cp.groundTruth, explanation, rigor: cp.rigor, assisted });
+    const g = await grade({ groundTruth: cp.groundTruth, explanation, rigor: cp.rigor, assisted, backend: this.backend });
 
     if (!g.pass) {
       // Stay open — the human takes another pass (with source rescue allowed).
@@ -145,10 +143,6 @@ export class ComprehensionLoop {
       recall_count: 0,
     };
     await this.storage.add(record);
-    // Mode A: a PASS clears the gate that blocked the write/plan. We clear even on an
-    // UNGRADED pass (grader failed open) — !pass never reaches here, and wedging every
-    // build because the grader is down would violate the fail-open-loudly contract.
-    if (cp.gateKey) grantClearance(cp.gateKey, { stage: cp.stage, concept: cp.concept });
     this.open_.delete(id);
 
     return {
@@ -168,7 +162,7 @@ export class ComprehensionLoop {
 
   /** Grade a plan explanation covering the gated decisions; on pass, defer the tail to recall. */
   private async submitPlan(cp: OpenCheckpoint, explanation: string, assisted: boolean): Promise<GradeResultOut> {
-    const g = await gradePlan({ groundTruth: cp.groundTruth, explanation, rigor: cp.rigor, decisions: cp.gated || [] });
+    const g = await gradePlan({ groundTruth: cp.groundTruth, explanation, rigor: cp.rigor, decisions: cp.gated || [], backend: this.backend });
     if (!g.pass) {
       return {
         pass: false,
@@ -189,7 +183,6 @@ export class ComprehensionLoop {
       scores: JSON.stringify({ covered: g.covered }), overlap: 'unknown', attempts: cp.attempts,
       next_recall_due: next_due, recall_count: 0,
     });
-    if (cp.gateKey) grantClearance(cp.gateKey, { stage: cp.stage, concept: cp.concept });
     this.open_.delete(cp.id);
     return {
       pass: true,
@@ -206,7 +199,7 @@ export class ComprehensionLoop {
     if (!rec) return null;
 
     // Recall is always at least as strict as the original; no source this time.
-    const g = await grade({ groundTruth: rec.ground_truth, explanation: answer, rigor: rec.rigor as RigorLevel, assisted: false });
+    const g = await grade({ groundTruth: rec.ground_truth, explanation: answer, rigor: rec.rigor as RigorLevel, assisted: false, backend: this.backend });
     const outcome: RecallOutcome = g.pass ? 'survived' : 'decayed';
     const next = scheduleAfterRecall(outcome, rec.recall_count);
 

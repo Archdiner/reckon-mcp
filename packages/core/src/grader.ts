@@ -1,31 +1,28 @@
 /**
  * The isolated grader (Reckon v5). This is the trust mechanism.
  *
- * A SEPARATE model call — a different, cheaper model (Haiku) than whatever wrote the
- * code — that sees ONLY (ground truth + the human's explanation + the rubric). It never
- * sees the main session. That blindness defeats sycophancy/self-preference: grading is a
- * comparison against the artifact, not a defense of the author's own work.
+ * A SEPARATE model call — a different, cheaper model than whatever wrote the code — that
+ * sees ONLY (ground truth + the human's explanation + the rubric). It never sees the main
+ * session. That blindness defeats sycophancy/self-preference: grading is a comparison
+ * against the artifact, not a defense of the author's own work.
  *
- * BACKEND: `claude -p` ONLY (validated in E2E-FINDINGS.md — 94% efficacy, 0 false-
- * pass/fail). It uses the user's existing Claude Code SUBSCRIPTION auth — no API key,
- * ever. Reckon ships to Claude Code users; requiring a separate ANTHROPIC_API_KEY would
- * be a non-starter. If the CLI is unavailable we fail-open LOUDLY (never block the human,
- * but mark the result ungraded so it can't masquerade as a real pass).
+ * BACKEND-AGNOSTIC: this module makes its model call through an injected `LlmBackend`
+ * (grader.ts never spawns a process or names a provider). The MCP host wires a
+ * `ClaudeCliBackend` (Claude Code subscription via `claude -p`); the sister repo can wire
+ * an OpenAI backend against the same port. If the backend is unavailable we fail-open
+ * LOUDLY (never block the human, but mark the result ungraded so it can't masquerade as a
+ * real pass).
  */
-import { spawn } from 'child_process';
 import { RigorLevel, graderSystemPrompt, planGraderSystemPrompt, gatePasses, DIMENSIONS } from './rubric.js';
-
-// Read at CALL time, not module-load time (ESM hoists imports before test env setup).
-// A different model than the main coding agent, on purpose ("don't self-judge").
-const graderModel = () => process.env.RECKON_GRADER_MODEL || 'claude-haiku-4-5';
-const cliCmd = () => process.env.RECKON_GRADER_CMD || 'claude'; // overridable for tests
-const cliTimeoutMs = () => Number(process.env.RECKON_GRADER_TIMEOUT_MS || 90_000);
+import { LlmBackend } from './llm.js';
 
 export interface GradeInput {
   groundTruth: string;
   explanation: string;
   rigor: RigorLevel;
   assisted: boolean;
+  /** The injected model backend — grader.ts makes ALL model calls through this port. */
+  backend: LlmBackend;
 }
 
 export interface GradeResult {
@@ -72,7 +69,7 @@ export async function grade(input: GradeInput): Promise<GradeResult> {
 
   let raw: string;
   try {
-    raw = await gradeViaCli(system, user);
+    raw = await input.backend.complete(system, user);
   } catch (err: any) {
     return failOpen(`grader backend error: ${err?.message || err}`);
   }
@@ -118,6 +115,8 @@ export async function gradePlan(input: {
   explanation: string;
   rigor: RigorLevel;
   decisions: { concept: string; summary: string }[];
+  /** The injected model backend — gradePlan makes its model call through this port. */
+  backend: LlmBackend;
 }): Promise<PlanGradeResult> {
   const system = planGraderSystemPrompt(input.rigor, input.decisions);
   const user = [
@@ -130,7 +129,7 @@ export async function gradePlan(input: {
 
   let raw: string;
   try {
-    raw = await gradeViaCli(system, user);
+    raw = await input.backend.complete(system, user);
   } catch (err: any) {
     return { pass: true, hole: '', covered: [], missing: [], ungraded: true, note: `plan grader error: ${err?.message || err}` };
   }
@@ -149,42 +148,6 @@ export async function gradePlan(input: {
     ungraded: false,
     note: String(parsed.note || ''),
   };
-}
-
-/** The only backend: the Claude Code CLI, on the user's subscription auth (no API key). */
-function gradeViaCli(system: string, user: string): Promise<string> {
-  const cmd = cliCmd();
-  return new Promise((resolve, reject) => {
-    // Strip the environment: the grader must not load the user's MCP servers, plugins, or
-    // project settings. It only judges text. Stripping cuts ~7s of startup per call AND
-    // keeps the grader truly isolated (it cannot see the user's tools).
-    const child = spawn(
-      cmd,
-      ['-p', '--model', graderModel(), '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--setting-sources', '', '--append-system-prompt', system],
-      { stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-    let out = '';
-    let err = '';
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      reject(new Error(`${cmd} -p timed out after ${cliTimeoutMs()}ms`));
-    }, cliTimeoutMs());
-
-    child.stdout.on('data', (d) => (out += d.toString()));
-    child.stderr.on('data', (d) => (err += d.toString()));
-    child.on('error', (e) => {
-      clearTimeout(timer);
-      reject(e); // e.g. ENOENT if the claude CLI isn't on PATH
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (code === 0) resolve(out);
-      else reject(new Error(`${cmd} -p exited ${code}: ${err.slice(0, 200)}`));
-    });
-
-    child.stdin.write(user);
-    child.stdin.end();
-  });
 }
 
 /** Pull the JSON object out of the model response, tolerant of stray prose/fences. */

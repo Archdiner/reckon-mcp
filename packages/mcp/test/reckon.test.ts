@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import { Storage, scheduleAfterGrade, scheduleAfterRecall } from './storage.js';
-import { ComprehensionLoop } from './loop.js';
-import { gatePasses, DIMENSIONS } from './rubric.js';
-import { elicitPrompt } from './elicit.js';
+import { SqliteStore, ComprehensionLoop, scheduleAfterGrade, scheduleAfterRecall, gatePasses, DIMENSIONS, elicitPrompt } from '@reckon/core';
+import { ClaudeCliBackend } from '../src/claude-cli-backend.js';
+
+// The injected model backend. In these unit tests it is pointed at a mock CLI (or a
+// nonexistent one, to force fail-open) via RECKON_GRADER_CMD — the same seam production
+// uses, exercised end-to-end through ClaudeCliBackend rather than stubbed out.
+const backend = new ClaudeCliBackend();
 
 // Isolate the DB to a temp dir so tests never touch ~/.reckon.
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'reckon-v5-'));
@@ -45,7 +48,7 @@ test('elicitPrompt asks for MECHANISM, not procedure', () => {
 });
 
 test('rigor floors at medium (never gentle)', async () => {
-  const loop = new ComprehensionLoop(new Storage());
+  const loop = new ComprehensionLoop(new SqliteStore(), backend);
   const r = await loop.open({ concept: 'c', subsystem: 's', stage: 'build', groundTruth: 'gt', rigor: undefined as any, sessionId: 'x' });
   assert.equal(r.rigor, 'medium');
 });
@@ -64,9 +67,9 @@ test('scheduling: survived recall lengthens, decayed shortens', () => {
 });
 
 test('full loop: explain → grade (fail-open) → logged UNGRADED, NOT scheduled (F2)', async () => {
-  const storage = new Storage();
+  const storage = new SqliteStore();
   await storage.init();
-  const loop = new ComprehensionLoop(storage);
+  const loop = new ComprehensionLoop(storage, backend);
 
   const opened = await loop.open({
     concept: 'isolated-grader',
@@ -119,9 +122,9 @@ process.stdin.on('end',()=>{let v;
   const prev = process.env.RECKON_GRADER_CMD;
   process.env.RECKON_GRADER_CMD = mock;
   try {
-    const storage = new Storage();
+    const storage = new SqliteStore();
     await storage.init();
-    const loop = new ComprehensionLoop(storage);
+    const loop = new ComprehensionLoop(storage, backend);
     const o = await loop.open({ concept: 'p', subsystem: 'plansub', stage: 'plan', groundTruth: 'a big multi-decision plan', sessionId: 's' });
     assert.match(o.prompt, /data layer/, 'plan prompt must name the clusters');
     assert.doesNotMatch(o.prompt, /come back later/, 'no deferral in the clustered model');
@@ -143,9 +146,9 @@ process.stdin.on('end',()=>{let v;
 });
 
 test('recall: a due item surfaces metadata-only (no stored explanation leaked)', async () => {
-  const storage = new Storage();
+  const storage = new SqliteStore();
   await storage.init();
-  const loop = new ComprehensionLoop(storage);
+  const loop = new ComprehensionLoop(storage, backend);
 
   const opened = await loop.open({ concept: 'x', subsystem: 'due-sub', stage: 'build', groundTruth: 'gt', sessionId: 's' });
   await loop.submit(opened.id, 'some explanation', false);

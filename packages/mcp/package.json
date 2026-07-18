@@ -1,7 +1,7 @@
 {
-  "name": "reckon-mcp-server",
+  "name": "@reckon/mcp",
   "version": "0.5.0",
-  "description": "Reckon v5 — comprehension loop: verify you can explain what your coding agent built.",
+  "description": "Reckon v5 MCP host: the Claude Code server + ClaudeCliBackend, wiring @reckon/core to the user's subscription via `claude -p`.",
   "main": "dist/server.js",
   "type": "module",
   "bin": {
@@ -10,14 +10,13 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "tsx watch server.ts",
-    "test": "tsx --test *.test.ts",
+    "dev": "tsx watch src/server.ts",
+    "test": "tsx --test test/*.test.ts",
     "deploy": "bash deploy.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
+    "@reckon/core": "0.5.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

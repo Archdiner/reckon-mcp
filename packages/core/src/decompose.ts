@@ -4,15 +4,12 @@
  * to recall instead of asking for one overwhelming "explain the whole plan" (which the
  * scenario test showed produces a false pass: understand 2 of 10 and the plan passes).
  *
- * Same backend as the grader: a `claude -p` call on the user's subscription. Fails safe:
- * if decomposition is unavailable, the caller treats the plan as a single decision (the
- * old behavior), so a decompose outage degrades, never blocks.
+ * Same injected backend as the grader (an `LlmBackend`): decompose.ts never spawns a
+ * process or names a provider. Fails safe: if decomposition is unavailable, the caller
+ * treats the plan as a single decision (the old behavior), so a decompose outage
+ * degrades, never blocks.
  */
-import { spawn } from 'child_process';
-
-const model = () => process.env.RECKON_GRADER_MODEL || 'claude-haiku-4-5';
-const cliCmd = () => process.env.RECKON_GRADER_CMD || 'claude';
-const cliTimeoutMs = () => Number(process.env.RECKON_GRADER_TIMEOUT_MS || 90_000);
+import { LlmBackend } from './llm.js';
 
 export interface Decision {
   concept: string; // short slug for the decision, e.g. "db-sharding-strategy"
@@ -53,12 +50,12 @@ const SYSTEM = [
   'Your entire response must start with { and end with }. Nothing before or after.',
 ].join('\n');
 
-export async function decompose(plan: string): Promise<Decomposition> {
+export async function decompose(plan: string, backend: LlmBackend): Promise<Decomposition> {
   const user = `PLAN:\n"""\n${plan.slice(0, 8000)}\n"""\n\nReturn ONLY the JSON object now, starting with {`;
   // One retry: the model is non-deterministic about honoring JSON-only vs going conversational.
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const raw = await runCli(SYSTEM, user);
+      const raw = await backend.complete(SYSTEM, user);
       const parsed = extractJson(raw);
       const decisions = Array.isArray(parsed?.decisions)
         ? parsed.decisions
@@ -75,34 +72,6 @@ export async function decompose(plan: string): Promise<Decomposition> {
     }
   }
   return { decisions: [], ok: false };
-}
-
-function runCli(system: string, user: string): Promise<string> {
-  const cmd = cliCmd();
-  return new Promise((resolve, reject) => {
-    // Strip the environment (no MCP servers, plugins, or project settings): ~7s faster
-    // startup per call, and decomposition has no business seeing the user's tools.
-    const child = spawn(
-      cmd,
-      ['-p', '--model', model(), '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--setting-sources', '', '--append-system-prompt', system],
-      { stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-    let out = '';
-    let err = '';
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      reject(new Error(`${cmd} -p timed out`));
-    }, cliTimeoutMs());
-    child.stdout.on('data', (d) => (out += d.toString()));
-    child.stderr.on('data', (d) => (err += d.toString()));
-    child.on('error', reject);
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      code === 0 ? resolve(out) : reject(new Error(`${cmd} -p exited ${code}: ${err.slice(0, 200)}`));
-    });
-    child.stdin.write(user);
-    child.stdin.end();
-  });
 }
 
 function extractJson(raw: string): any {

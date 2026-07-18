@@ -69,7 +69,23 @@ function resolveDbPath(): string {
   return path.join(home, 'reckon-v5.db');
 }
 
-export class Storage {
+/**
+ * The storage port. Core depends on this interface, not on any concrete engine, so a
+ * future PostgresStore (for the sister repo / a hosted deployment) can be dropped in
+ * without touching the loop. `SqliteStore` below is the default local implementation.
+ */
+export interface Storage {
+  init(): Promise<void>;
+  add(record: ExplanationRecord): Promise<void>;
+  update(id: string, updates: Partial<ExplanationRecord>): Promise<void>;
+  get(id: string): Promise<ExplanationRecord | null>;
+  getDueForRecall(subsystem?: string): Promise<ExplanationRecord[]>;
+  getBySubsystem(subsystem: string): Promise<ExplanationRecord[]>;
+  getAll(): Promise<ExplanationRecord[]>;
+  close(): Promise<void>;
+}
+
+export class SqliteStore implements Storage {
   private db: Database | null = null;
   private dbPath: string;
 

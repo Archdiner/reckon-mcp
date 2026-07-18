@@ -2,16 +2,23 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { Storage } from './storage.js';
+import { SqliteStore, ComprehensionLoop } from '@reckon/core';
 import { Classifier } from './classifier.js';
-import { ComprehensionLoop } from './loop.js';
+import { ClaudeCliBackend } from './claude-cli-backend.js';
+import { grantClearance } from './clearance.js';
 import crypto from 'crypto';
 
-const storage = new Storage();
+const storage = new SqliteStore();
 const classifier = new Classifier();
-const loop = new ComprehensionLoop(storage);
+// Inject the Claude Code backend (the only CC-specific coupling) into the agnostic loop.
+const loop = new ComprehensionLoop(storage, new ClaudeCliBackend());
 
 let currentSessionId = crypto.randomUUID();
+
+// Mode A (v5.2 write-gate) lives HOST-SIDE now that @reckon/core is client-agnostic.
+// Map an open checkpoint id → the gate it must clear on PASS. The clearance file is a
+// Claude-Code hook concern; core never knows about it.
+const pendingGates = new Map<string, { gateKey: string; stage: 'plan' | 'build'; concept: string }>();
 
 // How Claude decides when to reach for these tools. Trigger keywords first.
 const INSTRUCTIONS = [
@@ -145,21 +152,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (missing.length) throw new Error(`reckon_explain missing required field(s): ${missing.join(', ')}`);
         if (stage !== 'plan' && stage !== 'build') throw new Error(`stage must be "plan" or "build", got: ${stage}`);
         const gt = ground_truth.includes('\n+') || ground_truth.startsWith('+') ? addedLines(ground_truth) || ground_truth : ground_truth;
-        const r = await loop.open({
-          concept,
-          subsystem,
-          stage,
-          groundTruth: gt,
-          rigor,
-          sessionId: currentSessionId,
-          gateKey: typeof gate_key === 'string' && gate_key.trim() ? gate_key.trim() : undefined,
-        });
+        const r = await loop.open({ concept, subsystem, stage, groundTruth: gt, rigor, sessionId: currentSessionId });
+        // Mode A: remember which gate this checkpoint clears; the clearance is written on PASS.
+        const gk = typeof gate_key === 'string' && gate_key.trim() ? gate_key.trim() : undefined;
+        if (gk) pendingGates.set(r.id, { gateKey: gk, stage, concept });
         return text(r);
       }
       case 'reckon_grade': {
         const { id, explanation, assisted = false } = args as any;
         const r = await loop.submit(id, explanation, assisted);
         if (!r) throw new Error('Invalid or expired checkpoint ID');
+        // Mode A: a PASS clears the gate that blocked the write/plan. Clear even on an
+        // UNGRADED pass (grader failed open) — wedging every build on a grader outage would
+        // violate the fail-open-loudly contract. !pass never reaches here.
+        if (r.pass) {
+          const g = pendingGates.get(id);
+          if (g) {
+            grantClearance(g.gateKey, { stage: g.stage, concept: g.concept });
+            pendingGates.delete(id);
+          }
+        }
         return text(r);
       }
       case 'reckon_recall_due': {

@@ -1,0 +1,17 @@
+{
+  "name": "reckon-mcp",
+  "version": "0.5.0",
+  "private": true,
+  "description": "Reckon v5 — the comprehension loop, as an npm workspace: a client-agnostic @reckon/core brain plus the Claude Code MCP host.",
+  "type": "module",
+  "workspaces": [
+    "packages/core",
+    "packages/mcp"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "start": "npm run start --workspace @reckon/mcp",
+    "deploy": "npm run deploy --workspace @reckon/mcp"
+  }
+}
