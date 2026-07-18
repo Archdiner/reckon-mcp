@@ -39,3 +39,5 @@ SCENARIO-*.md
 
 # Internal continuation notes (not for the public repo)
 handover.md
+.env
+.claude/
