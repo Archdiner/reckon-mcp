@@ -52,7 +52,7 @@ This is experimental and early. It works, it is tested, and it is deployed for t
 
 ```bash
 git clone https://github.com/Archdiner/reckon-mcp.git
-cd reckon-mcp/mcp-server
+cd reckon-mcp
 npm install
 npm run build
 npm run deploy
@@ -124,11 +124,13 @@ The full design rationale is in [reckon-design-doc-v5.md](reckon-design-doc-v5.m
 
 ## Development
 
+This is an npm workspace: `@reckon/core` (the client-agnostic brain) and `@reckon/mcp` (the Claude Code host, including the hooks). Build and test from the repo root; the scripts fan out to both packages.
+
 ```bash
-cd mcp-server
+cd reckon-mcp
 npm install
 npm run build
-npm test        # unit tests
+npm test        # unit tests across all workspaces
 ```
 
 The grader model can be overridden with `RECKON_GRADER_MODEL`. The ledger location can be moved with `RECKON_HOME` (used by the tests so they never touch your real data).
