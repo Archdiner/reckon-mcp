@@ -71,6 +71,24 @@ export function retryPrompt(hole: string, assisted: boolean): string {
 }
 
 /**
+ * The floor of the escalation ladder (§③). After the question rungs are exhausted, Reckon
+ * finally TELLS — states the mechanism it has been withholding — and clears the gate. The
+ * clear is honest about what it is: marked `told`, so it never reads as earned understanding,
+ * and it comes back cold soonest of all. No block, just a truthful label + more teaching.
+ */
+export function tellPrompt(reveal: string): string {
+  const body = reveal.trim() || 'The gap is in the core mechanism — re-read the source with the failure mode in mind.';
+  return [
+    `Here's the piece you were missing:`,
+    '',
+    body,
+    '',
+    `Marked TELL — you were handed this rather than reaching it, so it's logged honestly (not`,
+    `as earned) and will come back cold, soon, for you to reconstruct from your own head.`,
+  ].join('\n');
+}
+
+/**
  * The cold-recall prompt (§④). No source, no hints — reconstruct from memory.
  * This is the real retention test; ASSISTED passes come back here sooner/harder.
  */

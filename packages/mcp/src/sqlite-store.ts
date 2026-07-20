@@ -25,6 +25,7 @@ const COLUMNS: { name: string; ddl: string }[] = [
   { name: 'explanation', ddl: "explanation TEXT NOT NULL DEFAULT ''" },
   { name: 'rigor', ddl: "rigor TEXT NOT NULL DEFAULT 'medium'" },
   { name: 'assisted', ddl: 'assisted INTEGER NOT NULL DEFAULT 0' },
+  { name: 'told', ddl: 'told INTEGER NOT NULL DEFAULT 0' },
   { name: 'passed', ddl: 'passed INTEGER NOT NULL DEFAULT 0' },
   { name: 'ungraded', ddl: 'ungraded INTEGER NOT NULL DEFAULT 0' },
   { name: 'scores', ddl: "scores TEXT NOT NULL DEFAULT '{}'" },
@@ -77,9 +78,9 @@ export class SqliteStore implements Storage {
     await this.db.run(
       `INSERT INTO explanations (
         id, timestamp, session_id, subsystem, concept, stage, ground_truth,
-        explanation, rigor, assisted, passed, ungraded, scores, overlap, attempts,
+        explanation, rigor, assisted, told, passed, ungraded, scores, overlap, attempts,
         next_recall_due, recall_count, last_recall_outcome
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         record.id,
         record.timestamp,
@@ -91,6 +92,7 @@ export class SqliteStore implements Storage {
         record.explanation,
         record.rigor,
         record.assisted ? 1 : 0,
+        record.told ? 1 : 0,
         record.passed ? 1 : 0,
         record.ungraded ? 1 : 0,
         record.scores,
@@ -152,7 +154,7 @@ export class SqliteStore implements Storage {
   }
 
   private rowToRecord(row: any): ExplanationRecord {
-    return { ...row, assisted: row.assisted === 1, passed: row.passed === 1, ungraded: row.ungraded === 1 };
+    return { ...row, assisted: row.assisted === 1, told: row.told === 1, passed: row.passed === 1, ungraded: row.ungraded === 1 };
   }
 
   async close(): Promise<void> {

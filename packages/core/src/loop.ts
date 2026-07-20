@@ -1,15 +1,33 @@
 import crypto from 'crypto';
 import { Storage, ExplanationRecord, Stage, RecallOutcome, scheduleAfterGrade, scheduleAfterRecall } from './storage.js';
 import { grade, gradePlan } from './grader.js';
-import { elicitPrompt, planElicitPrompt, retryPrompt, recallPrompt } from './elicit.js';
+import { elicitPrompt, planElicitPrompt, retryPrompt, recallPrompt, tellPrompt } from './elicit.js';
 import { decompose, Decision } from './decompose.js';
-import { RigorLevel } from './rubric.js';
+import { RigorLevel, Rung, FLOOR_RUNG } from './rubric.js';
 import { LlmBackend } from './llm.js';
 
 // Safety cap on clusters gated in one plan checkpoint. decompose() returns 2-4 coherent
 // sub-problems and we gate ALL of them in one combined grade (no deferral); this is just
 // a backstop against a decompose that returns more than expected.
 const MAX_GATED = Math.max(1, Number(process.env.RECKON_MAX_DECISIONS || 4));
+
+/**
+ * The escalation floor: the attempt number at which, on a fresh miss, Reckon stops asking
+ * and TELLS (a marked `told` clear). Default 4 → three question rungs (nudge, sharper,
+ * pointed) then the floor. Read per-call, not at module load, so hosts/tests can retune it
+ * (RECKON_LADDER_FLOOR) without reimporting. Clamped so there's always ≥1 real swing.
+ */
+function floorAttempt(): number {
+  return Math.max(2, Number(process.env.RECKON_LADDER_FLOOR || 4));
+}
+
+/** Map an attempt count to an escalation rung: 1→0, 2→1, 3→2, and the floor attempt →3. */
+function rungFor(attempts: number): Rung {
+  if (attempts >= floorAttempt()) return FLOOR_RUNG;
+  return Math.min(attempts - 1, 2) as Rung;
+}
+
+export type Tier = 'earned' | 'assisted' | 'told' | '';
 
 /**
  * The comprehension loop engine (Reckon v5).
@@ -46,11 +64,17 @@ export interface OpenResult {
 
 export interface GradeResultOut {
   pass: boolean;
-  prompt?: string; // retry prompt if !pass
+  prompt?: string; // retry prompt if !pass, or the TELL prompt at the floor
   feedback: string;
   scores: Record<string, number>;
   overlap: string;
   assisted: boolean;
+  /** Honesty tier of a PASS: earned | assisted | told. Empty on a still-open retry. */
+  tier: Tier;
+  /** True when this pass cleared by TELL at the floor (marked, penalized). */
+  told: boolean;
+  /** The mechanism the floor handed over, when told. */
+  reveal?: string;
   ungraded: boolean;
   next_recall_due?: string;
 }
@@ -103,18 +127,27 @@ export class ComprehensionLoop {
 
     if (cp.isPlan) return this.submitPlan(cp, explanation, assisted);
 
-    const g = await grade({ groundTruth: cp.groundTruth, explanation, rigor: cp.rigor, assisted, backend: this.backend });
+    const rung = rungFor(cp.attempts);
+    const g = await grade({ groundTruth: cp.groundTruth, explanation, rigor: cp.rigor, assisted, escalation: rung, backend: this.backend });
 
     if (!g.pass) {
-      // Stay open — the human takes another pass (with source rescue allowed).
+      // Genuine graded fail (fail-open returns pass=true, so it never lands here).
+      if (cp.attempts >= floorAttempt()) {
+        // FLOOR: stop asking, TELL, and clear the gate with a marked `told` pass. Access is
+        // never blocked — only the honesty label changes (told never reads as earned).
+        return this.tellAtFloor(cp, explanation, assisted, g.reveal, g.scores, g.overlap);
+      }
+      // Stay open — the human takes another pass at a sharper rung (source rescue allowed).
       return {
         pass: false,
         prompt: retryPrompt(g.hole, assisted),
-        feedback: g.ungraded ? 'grader unavailable — passing ungraded' : 'not yet — one gap to close',
+        feedback: `not yet — one gap to close (nudge ${cp.attempts}/${floorAttempt() - 1})`,
         scores: g.scores,
         overlap: g.overlap,
         assisted,
-        ungraded: g.ungraded,
+        tier: '',
+        told: false,
+        ungraded: false,
       };
     }
 
@@ -134,6 +167,7 @@ export class ComprehensionLoop {
       explanation,
       rigor: cp.rigor,
       assisted,
+      told: false,
       passed: true,
       ungraded: g.ungraded,
       scores: JSON.stringify(g.scores),
@@ -155,23 +189,83 @@ export class ComprehensionLoop {
       scores: g.scores,
       overlap: g.overlap,
       assisted,
+      tier: g.ungraded ? '' : assisted ? 'assisted' : 'earned',
+      told: false,
       ungraded: g.ungraded,
       next_recall_due: next_due,
     };
   }
 
-  /** Grade a plan explanation covering the gated decisions; on pass, defer the tail to recall. */
+  /**
+   * The escalation floor for a single-decision checkpoint. Logs a marked `told` clear,
+   * schedules the soonest cold recall, and hands the withheld mechanism to the human. This
+   * is the one place the gate clears WITHOUT a real pass — the price is honesty (logged told)
+   * plus resurfacing fast, never a wall.
+   */
+  private async tellAtFloor(
+    cp: OpenCheckpoint,
+    explanation: string,
+    assisted: boolean,
+    reveal: string,
+    scores: Record<string, number>,
+    overlap: string
+  ): Promise<GradeResultOut> {
+    const next_due = scheduleAfterGrade(true, assisted, /* told */ true);
+    await this.storage.add({
+      id: cp.id,
+      timestamp: new Date().toISOString(),
+      session_id: cp.sessionId,
+      subsystem: cp.subsystem,
+      concept: cp.concept,
+      stage: cp.stage,
+      ground_truth: cp.groundTruth,
+      explanation,
+      rigor: cp.rigor,
+      assisted,
+      told: true,
+      passed: true,
+      ungraded: false,
+      scores: JSON.stringify(scores),
+      overlap,
+      attempts: cp.attempts,
+      next_recall_due: next_due,
+      recall_count: 0,
+    });
+    this.open_.delete(cp.id);
+    return {
+      pass: true,
+      prompt: tellPrompt(reveal),
+      feedback: '● Cleared by TELL (marked) — handed the mechanism at the floor; logged told, resurfaces cold soon.',
+      scores,
+      overlap,
+      assisted,
+      tier: 'told',
+      told: true,
+      reveal,
+      ungraded: false,
+      next_recall_due: next_due,
+    };
+  }
+
+  /** Grade a plan explanation covering the gated decisions; escalates and tells at the floor. */
   private async submitPlan(cp: OpenCheckpoint, explanation: string, assisted: boolean): Promise<GradeResultOut> {
-    const g = await gradePlan({ groundTruth: cp.groundTruth, explanation, rigor: cp.rigor, decisions: cp.gated || [], backend: this.backend });
+    const rung = rungFor(cp.attempts);
+    const g = await gradePlan({ groundTruth: cp.groundTruth, explanation, rigor: cp.rigor, decisions: cp.gated || [], escalation: rung, backend: this.backend });
     if (!g.pass) {
+      if (cp.attempts >= floorAttempt()) {
+        // FLOOR: tell the weakest decision's mechanism, clear with a marked `told`.
+        return this.tellAtFloor(cp, explanation, assisted, g.reveal, {}, 'unknown');
+      }
       return {
         pass: false,
         prompt: retryPrompt(g.hole, assisted),
-        feedback: g.ungraded ? 'plan grader unavailable — passing ungraded' : `not yet — ${g.missing.length} decision(s) still need real mechanism`,
+        feedback: `not yet — ${g.missing.length} decision(s) still need real mechanism (nudge ${cp.attempts}/${floorAttempt() - 1})`,
         scores: {},
         overlap: 'unknown',
         assisted,
-        ungraded: g.ungraded,
+        tier: '',
+        told: false,
+        ungraded: false,
       };
     }
     // Retention recall stays (the Feynman moat): a passed plan comes back cold later.
@@ -179,7 +273,7 @@ export class ComprehensionLoop {
     await this.storage.add({
       id: cp.id, timestamp: new Date().toISOString(), session_id: cp.sessionId,
       subsystem: cp.subsystem, concept: cp.concept, stage: 'plan', ground_truth: cp.groundTruth,
-      explanation, rigor: cp.rigor, assisted, passed: true, ungraded: g.ungraded,
+      explanation, rigor: cp.rigor, assisted, told: false, passed: true, ungraded: g.ungraded,
       scores: JSON.stringify({ covered: g.covered }), overlap: 'unknown', attempts: cp.attempts,
       next_recall_due: next_due, recall_count: 0,
     });
@@ -189,7 +283,9 @@ export class ComprehensionLoop {
       feedback: g.ungraded
         ? '○ Plan logged ungraded (grader unavailable).'
         : `✓ Passed — explained all ${g.covered.length} sub-problem(s) of the plan. Filed for cold recall.`,
-      scores: {}, overlap: 'unknown', assisted, ungraded: g.ungraded, next_recall_due: next_due,
+      scores: {}, overlap: 'unknown', assisted,
+      tier: g.ungraded ? '' : assisted ? 'assisted' : 'earned', told: false,
+      ungraded: g.ungraded, next_recall_due: next_due,
     };
   }
 
@@ -216,6 +312,8 @@ export class ComprehensionLoop {
       scores: g.scores,
       overlap: g.overlap,
       assisted: false,
+      tier: '',
+      told: false,
       ungraded: g.ungraded,
       next_recall_due: next,
     };

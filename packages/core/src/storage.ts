@@ -25,6 +25,13 @@ export interface ExplanationRecord {
   rigor: string; // 'medium' | 'harsh'
   /** Did the human lean on the source? Assisted passes are re-checked cold sooner. */
   assisted: boolean;
+  /**
+   * The honesty tier's third rung: cleared by TELL at the escalation floor, not by a real
+   * pass. A told clear is marked (never masquerades as earned) and penalized — it comes back
+   * cold soonest of all. earned → assisted → told is a gradient of how much you leaned; the
+   * penalty is more teaching (a shorter recall interval), never less access.
+   */
+  told: boolean;
   passed: boolean;
   /** True when the grader failed open (unavailable): logged but NOT verified. */
   ungraded: boolean;
@@ -54,13 +61,23 @@ export interface Storage {
 }
 
 /**
- * Recall scheduling (the temporal loop). A clean cold pass earns a long interval; an ASSISTED
- * pass (you leaned on the source) comes back sooner and the source is gone — the real
- * retention test. Survived recall lengthens; decayed shortens.
+ * Recall scheduling (the temporal loop). The initial interval is set by the honesty tier —
+ * how much you leaned to clear the gate:
+ *
+ *   earned   (clean, from your head)      → 14 days
+ *   assisted (you re-read the source)     →  3 days  — comes back cold, sooner
+ *   told     (handed the answer at floor) →  1 day   — soonest; the penalty is more teaching
+ *
+ * Same curve, steeper at each rung. `told` overrides `assisted` (you can't be handed the
+ * answer AND count as merely having peeked). Survived recall lengthens; decayed shortens.
  */
-export function scheduleAfterGrade(passed: boolean, assisted: boolean): string | undefined {
+export function scheduleAfterGrade(
+  passed: boolean,
+  assisted: boolean,
+  told: boolean = false
+): string | undefined {
   if (!passed) return undefined; // failed checkpoints aren't scheduled; they re-fire in-session
-  const days = assisted ? 3 : 14;
+  const days = told ? 1 : assisted ? 3 : 14;
   return isoInDays(days);
 }
 
