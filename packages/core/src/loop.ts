@@ -18,7 +18,9 @@ const MAX_GATED = Math.max(1, Number(process.env.RECKON_MAX_DECISIONS || 4));
  * (RECKON_LADDER_FLOOR) without reimporting. Clamped so there's always ≥1 real swing.
  */
 function floorAttempt(): number {
-  return Math.max(2, Number(process.env.RECKON_LADDER_FLOOR || 4));
+  const envVal = process.env.RECKON_LADDER_FLOOR;
+  const parsed = envVal !== undefined ? Number(envVal) : 4;
+  return Math.max(2, Number.isNaN(parsed) ? 4 : parsed);
 }
 
 /** Map an attempt count to an escalation rung: 1→0, 2→1, 3→2, and the floor attempt →3. */
