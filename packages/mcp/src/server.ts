@@ -86,8 +86,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       _meta: { 'anthropic/alwaysLoad': true },
       description:
         "Submit the user's explanation for grading by the isolated grader. Returns pass + feedback, " +
-        'or a single re-explanation prompt to relay if they missed the mechanism. Set assisted=true if ' +
-        'they opened the source to answer (it will be re-checked cold, sooner).',
+        'or a re-explanation prompt to relay if they missed the mechanism. Successive misses escalate ' +
+        '(nudge → sharper → pointed); at the floor Reckon TELLS the mechanism and clears with a marked, ' +
+        'penalized `told` pass (relay the returned prompt either way). Set assisted=true if they opened ' +
+        'the source to answer (it will be re-checked cold, sooner).',
       inputSchema: {
         type: 'object',
         properties: {

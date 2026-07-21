@@ -61,6 +61,16 @@ test('scheduling: assisted pass comes back sooner than a clean pass', () => {
   assert.equal(scheduleAfterGrade(false, false), undefined, 'failed checkpoints are not scheduled');
 });
 
+test('scheduling: honesty tiers steepen — told < assisted < earned', () => {
+  const earned = new Date(scheduleAfterGrade(true, false, false)!).getTime();
+  const assisted = new Date(scheduleAfterGrade(true, true, false)!).getTime();
+  const told = new Date(scheduleAfterGrade(true, false, true)!).getTime();
+  assert.ok(told < assisted, 'a told clear must resurface sooner than an assisted pass');
+  assert.ok(assisted < earned, 'an assisted pass must resurface sooner than an earned pass');
+  // told overrides assisted: being handed the answer can't downgrade to "merely peeked".
+  assert.equal(scheduleAfterGrade(true, true, true), scheduleAfterGrade(true, false, true));
+});
+
 test('scheduling: survived recall lengthens, decayed shortens', () => {
   const survived = new Date(scheduleAfterRecall('survived', 1)).getTime();
   const decayed = new Date(scheduleAfterRecall('decayed', 1)).getTime();
@@ -143,6 +153,67 @@ process.stdin.on('end',()=>{let v;
     await storage.close();
   } finally {
     process.env.RECKON_GRADER_CMD = prev;
+  }
+});
+
+test('escalation: question rungs then TELL at the floor → marked, penalized told clear', async () => {
+  // A mock grader that ALWAYS fails the mechanism gate and always offers a reveal. This forces
+  // the ladder to climb; the LOOP (not the grader) converts the floor miss into a told-pass.
+  const mock = path.join(tmp, 'fail-mock.mjs');
+  fs.writeFileSync(
+    mock,
+    `#!/usr/bin/env node
+const argv=process.argv.join('\\n');let s='';process.stdin.setEncoding('utf8');
+process.stdin.on('data',d=>s+=d);
+process.stdin.on('end',()=>{let v;
+ if(argv.includes("Reckon's explanation grader")){v={
+   scores:{mechanism:0,inference:2,correctness:2,coverage:1,integration:1,tradeoffs:1,self_monitoring:1},
+   overlap:'high',pass:false,hole:'why would that break?',
+   reveal:'REVEALED: it invalidates on read, so a write that does not clear the cache serves stale values.',
+   note:'restatement'};}
+ else v={scores:{},pass:false,overlap:'high',hole:'x',reveal:'',note:'s'};
+ process.stdout.write(JSON.stringify(v));});`
+  );
+  fs.chmodSync(mock, 0o755);
+  const prevCmd = process.env.RECKON_GRADER_CMD;
+  const prevFloor = process.env.RECKON_LADDER_FLOOR;
+  process.env.RECKON_GRADER_CMD = mock;
+  process.env.RECKON_LADDER_FLOOR = '3'; // two question rungs, then tell on attempt 3
+  try {
+    const storage = new SqliteStore();
+    await storage.init();
+    const loop = new ComprehensionLoop(storage, backend);
+    const o = await loop.open({ concept: 'cache-invalidation', subsystem: 'ladder-sub', stage: 'build', groundTruth: 'invalidate on read', sessionId: 's' });
+
+    const r1 = await loop.submit(o.id, 'we clear the cache on write', false);
+    assert.equal(r1!.pass, false, 'first miss stays open');
+    assert.equal(r1!.told, false);
+    assert.match(r1!.prompt!, /gap/i);
+
+    const r2 = await loop.submit(o.id, 'still on write', false);
+    assert.equal(r2!.pass, false, 'second miss stays open (sharper rung)');
+    assert.equal(r2!.told, false);
+
+    const r3 = await loop.submit(o.id, 'i really do not know', false);
+    assert.equal(r3!.pass, true, 'the floor ALWAYS clears — access is never blocked');
+    assert.equal(r3!.told, true, 'but the clear is marked told, not earned');
+    assert.equal(r3!.tier, 'told');
+    assert.match(r3!.reveal!, /REVEALED:/, 'the withheld mechanism is finally spent');
+    assert.match(r3!.prompt!, /REVEALED:/, 'the tell prompt carries the correction to the user');
+    assert.ok(r3!.next_recall_due, 'a told clear is still scheduled for cold recall');
+
+    const rows = await storage.getBySubsystem('ladder-sub');
+    assert.equal(rows.length, 1, 'exactly one row is logged, at the floor');
+    assert.equal(rows[0].told, true, 'the ledger records told (never masquerades as earned)');
+    assert.equal(rows[0].passed, true);
+    // told resurfaces sooner than a clean earned pass would (steeper curve).
+    const earnedDue = new Date(scheduleAfterGrade(true, false)!).getTime();
+    assert.ok(new Date(rows[0].next_recall_due!).getTime() < earnedDue, 'told comes back cold sooner');
+    await storage.close();
+  } finally {
+    process.env.RECKON_GRADER_CMD = prevCmd;
+    if (prevFloor === undefined) delete process.env.RECKON_LADDER_FLOOR;
+    else process.env.RECKON_LADDER_FLOOR = prevFloor;
   }
 });
 

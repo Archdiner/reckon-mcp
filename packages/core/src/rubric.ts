@@ -84,12 +84,59 @@ export const DIMENSIONS: Dimension[] = [
 ];
 
 /**
+ * The escalation ladder. On each successive miss the hole gets MORE specific — but rungs
+ * 0–2 still only ever ask a QUESTION (escalating the question preserves the self-explanation
+ * effect; escalating to the answer would destroy it). Rung 3 is the FLOOR: the one place the
+ * grader TELLS. The floor exists so the gate always eventually clears — access is never
+ * blocked, only the honesty label changes (a floor clear is logged `told`, see storage.ts).
+ *
+ * The specific misconception is computed on EVERY grade anyway (you can't score the
+ * correctness gate without locating the contradiction). The ladder is just how much of that
+ * already-computed pinpoint gets spent, and when.
+ */
+export type Rung = 0 | 1 | 2 | 3;
+export const FLOOR_RUNG: Rung = 3;
+
+function rungInstruction(escalation: Rung): string {
+  switch (escalation) {
+    case 0:
+      return (
+        '     Pick the SINGLE most important hole and phrase it as a warm, mechanism-focused\n' +
+        '     re-explanation prompt (e.g. "why does X break if you changed it?"). Do NOT dump\n' +
+        '     the scorecard; do NOT give the answer.'
+      );
+    case 1:
+      return (
+        '     They already missed once at a gentle nudge. NARROW it: name the specific part of\n' +
+        '     the mechanism they are getting wrong and ask a sharper question about THAT part.\n' +
+        '     Still a question — do NOT state the correct answer yet.'
+      );
+    case 2:
+      return (
+        '     They have now missed twice. ISOLATE the exact contradiction between their\n' +
+        '     explanation and the ground truth. Ask a pointed question that forces them to\n' +
+        '     confront that one spot (e.g. "trace one read right after a write — what value is\n' +
+        '     served?"). This is the last question rung — still do NOT hand over the answer.'
+      );
+    case 3:
+      return (
+        '     FLOOR. They have exhausted the question rungs. Grade honestly as usual, but ALSO\n' +
+        '     fill "reveal": state the correct mechanism plainly and specifically — the exact\n' +
+        '     thing they kept missing and WHY it works that way (2–4 sentences). This is the one\n' +
+        '     place you TELL. "hole" may stay a short pointer; "reveal" carries the correction.'
+      );
+  }
+}
+
+/**
  * Build the system prompt for the isolated grader. Reference-guided (ground truth
  * is handed in), reason-before-score (G-Eval CoT), rubric-anchored. The grader
  * NEVER sees the main session — only what this prompt carries — which is what
  * makes its verdict trustworthy rather than self-preferential.
+ *
+ * `escalation` (0–3) sets how specific the miss-feedback is — see the ladder above.
  */
-export function graderSystemPrompt(rigor: RigorLevel): string {
+export function graderSystemPrompt(rigor: RigorLevel, escalation: Rung = 0): string {
   const gateKeys = DIMENSIONS.filter((d) => d.gate).map((d) => d.key);
   const rubricLines = DIMENSIONS.map(
     (d) =>
@@ -127,9 +174,8 @@ export function graderSystemPrompt(rigor: RigorLevel): string {
     '  2. Estimate source-overlap: how much is echo vs inferred.',
     '  3. Score each dimension 0/1/2.',
     '  4. Apply the gate rule for this rigor level.',
-    '  5. If FAIL: pick the SINGLE most important hole and phrase it as a warm',
-    '     re-explanation prompt (mechanism-focused, e.g. "why does X break if changed?").',
-    '     Do NOT dump the scorecard at the human.',
+    '  5. If FAIL, produce the miss-feedback at THIS escalation level:',
+    rungInstruction(escalation),
     '',
     'Respond with ONLY a JSON object (no prose around it):',
     '{',
@@ -137,7 +183,8 @@ export function graderSystemPrompt(rigor: RigorLevel): string {
     '              "coverage": 0-2, "integration": 0-2, "tradeoffs": 0-2, "self_monitoring": 0-2 },',
     '  "overlap": "low" | "medium" | "high",',
     '  "pass": boolean,',
-    '  "hole": "the ONE re-explanation prompt if !pass, else empty string",',
+    '  "hole": "the re-explanation prompt if !pass, else empty string",',
+    '  "reveal": "the plain correct mechanism — ONLY at the floor (escalation 3) on a fail; else empty",',
     '  "note": "one short internal line on why (not shown to the human)"',
     '}',
   ].join('\n');
@@ -152,7 +199,8 @@ export function graderSystemPrompt(rigor: RigorLevel): string {
  */
 export function planGraderSystemPrompt(
   rigor: RigorLevel,
-  decisions: { concept: string; summary: string }[]
+  decisions: { concept: string; summary: string }[],
+  escalation: Rung = 0
 ): string {
   const list = decisions.map((d, i) => `  ${i + 1}. ${d.concept}: ${d.summary}`).join('\n');
   const bar =
@@ -170,12 +218,15 @@ export function planGraderSystemPrompt(
     'not whether they restate the plan. Restatement and echo do not count.',
     '',
     `RULE: coverage of ALL listed decisions is REQUIRED. ${bar}`,
-    'If ANY listed decision is unaddressed or only restated, pass = false and hole = a warm',
-    're-explanation prompt for the SINGLE weakest/missing decision (name it).',
+    'If ANY listed decision is unaddressed or only restated, pass = false. Escalation ' +
+      `level ${escalation} (0 gentle → 3 floor) sets the miss-feedback for the SINGLE weakest ` +
+      'decision (always name it):',
+    rungInstruction(escalation),
     '',
     'Respond with ONLY JSON:',
     '{ "covered": ["concept", ...], "missing": ["concept", ...], "pass": boolean,',
     '  "hole": "re-explanation prompt for the one weakest decision if !pass, else empty",',
+    '  "reveal": "the plain correct mechanism of the weakest decision — ONLY at floor (3) on fail; else empty",',
     '  "note": "one short internal line" }',
   ].join('\n');
 }

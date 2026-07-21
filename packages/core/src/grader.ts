@@ -13,7 +13,7 @@
  * LOUDLY (never block the human, but mark the result ungraded so it can't masquerade as a
  * real pass).
  */
-import { RigorLevel, graderSystemPrompt, planGraderSystemPrompt, gatePasses, DIMENSIONS } from './rubric.js';
+import { RigorLevel, Rung, graderSystemPrompt, planGraderSystemPrompt, gatePasses, DIMENSIONS } from './rubric.js';
 import { LlmBackend } from './llm.js';
 
 export interface GradeInput {
@@ -21,6 +21,9 @@ export interface GradeInput {
   explanation: string;
   rigor: RigorLevel;
   assisted: boolean;
+  /** Escalation rung (0 nudge → 3 floor/tell). Drives how specific the miss-feedback is,
+   *  and whether the grader fills `reveal`. Defaults to 0 (a gentle first nudge). */
+  escalation?: Rung;
   /** The injected model backend — grader.ts makes ALL model calls through this port. */
   backend: LlmBackend;
 }
@@ -28,6 +31,9 @@ export interface GradeInput {
 export interface GradeResult {
   pass: boolean;
   hole: string;
+  /** The plain correct mechanism — populated ONLY at the floor (escalation 3) on a fail.
+   *  This is the pinpoint the grader always computes, finally spent. Empty otherwise. */
+  reveal: string;
   scores: Record<string, number>;
   overlap: 'low' | 'medium' | 'high' | 'unknown';
   ungraded: boolean; // true if we failed open — the caller MUST surface this loudly
@@ -64,7 +70,7 @@ function userContent(input: GradeInput): string {
 }
 
 export async function grade(input: GradeInput): Promise<GradeResult> {
-  const system = graderSystemPrompt(input.rigor);
+  const system = graderSystemPrompt(input.rigor, input.escalation ?? 0);
   const user = userContent(input);
 
   let raw: string;
@@ -85,6 +91,7 @@ export async function grade(input: GradeInput): Promise<GradeResult> {
   return {
     pass,
     hole: pass ? '' : String(parsed.hole || 'Explain the underlying mechanism — the why, not the what.'),
+    reveal: pass ? '' : String(parsed.reveal || ''),
     scores,
     overlap: parsed.overlap || 'unknown',
     ungraded: false,
@@ -94,12 +101,14 @@ export async function grade(input: GradeInput): Promise<GradeResult> {
 
 /** LOUD fail-open: pass so we never block, but flagged so it can't look like a real grade. */
 function failOpen(note: string): GradeResult {
-  return { pass: true, hole: '', scores: emptyScores(), overlap: 'unknown', ungraded: true, note };
+  return { pass: true, hole: '', reveal: '', scores: emptyScores(), overlap: 'unknown', ungraded: true, note };
 }
 
 export interface PlanGradeResult {
   pass: boolean;
   hole: string;
+  /** The plain correct mechanism of the weakest decision — floor-only, like GradeResult. */
+  reveal: string;
   covered: string[];
   missing: string[];
   ungraded: boolean;
@@ -115,10 +124,12 @@ export async function gradePlan(input: {
   explanation: string;
   rigor: RigorLevel;
   decisions: { concept: string; summary: string }[];
+  /** Escalation rung (0 nudge → 3 floor/tell), as in grade(). */
+  escalation?: Rung;
   /** The injected model backend — gradePlan makes its model call through this port. */
   backend: LlmBackend;
 }): Promise<PlanGradeResult> {
-  const system = planGraderSystemPrompt(input.rigor, input.decisions);
+  const system = planGraderSystemPrompt(input.rigor, input.decisions, input.escalation ?? 0);
   const user = [
     'PLAN (ground truth; the human did NOT write this):',
     '"""', input.groundTruth.slice(0, 8000), '"""',
@@ -131,11 +142,11 @@ export async function gradePlan(input: {
   try {
     raw = await input.backend.complete(system, user);
   } catch (err: any) {
-    return { pass: true, hole: '', covered: [], missing: [], ungraded: true, note: `plan grader error: ${err?.message || err}` };
+    return { pass: true, hole: '', reveal: '', covered: [], missing: [], ungraded: true, note: `plan grader error: ${err?.message || err}` };
   }
   const parsed = extractJson(raw);
   if (!parsed || parsed.pass === undefined) {
-    return { pass: true, hole: '', covered: [], missing: [], ungraded: true, note: 'plan grader output unparseable' };
+    return { pass: true, hole: '', reveal: '', covered: [], missing: [], ungraded: true, note: 'plan grader output unparseable' };
   }
   const missing = Array.isArray(parsed.missing) ? parsed.missing.map(String) : [];
   // Deterministic backstop: if the model says pass but left any decision missing, it fails.
@@ -143,6 +154,7 @@ export async function gradePlan(input: {
   return {
     pass,
     hole: pass ? '' : String(parsed.hole || 'Explain the mechanism of the decision you skipped.'),
+    reveal: pass ? '' : String(parsed.reveal || ''),
     covered: Array.isArray(parsed.covered) ? parsed.covered.map(String) : [],
     missing,
     ungraded: false,

@@ -6,7 +6,7 @@
  * or a future reckon-pr GitHub App) wires concrete backends against these interfaces.
  */
 export { ComprehensionLoop } from './loop.js';
-export type { OpenResult, GradeResultOut } from './loop.js';
+export type { OpenResult, GradeResultOut, Tier } from './loop.js';
 
 export { grade, gradePlan } from './grader.js';
 export type { GradeInput, GradeResult, PlanGradeResult } from './grader.js';
@@ -16,13 +16,14 @@ export type { Decision, Decomposition } from './decompose.js';
 
 export {
   DIMENSIONS,
+  FLOOR_RUNG,
   graderSystemPrompt,
   planGraderSystemPrompt,
   gatePasses,
 } from './rubric.js';
-export type { RigorLevel, Dimension } from './rubric.js';
+export type { RigorLevel, Dimension, Rung } from './rubric.js';
 
-export { elicitPrompt, planElicitPrompt, retryPrompt, recallPrompt } from './elicit.js';
+export { elicitPrompt, planElicitPrompt, retryPrompt, recallPrompt, tellPrompt } from './elicit.js';
 export type { ElicitInput } from './elicit.js';
 
 export { scheduleAfterGrade, scheduleAfterRecall } from './storage.js';
