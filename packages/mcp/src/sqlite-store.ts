@@ -4,6 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import type { Storage, ExplanationRecord } from '@reckon/core';
+import { forwardEvent } from './supabase-forward.js';
 
 /**
  * SqliteStore — the local (Claude Code host) implementation of @reckon/core's `Storage`
@@ -103,6 +104,12 @@ export class SqliteStore implements Storage {
         record.last_recall_outcome || null,
       ]
     );
+
+    // Dual-write to the shared Supabase (the CONNECTION): mirror this event, stamped with the
+    // user's GitHub identity, so it joins the reckon-pr PR-gate records into one cross-surface
+    // profile. Fire-and-forget + best-effort — local SQLite above is the source of truth, so a
+    // network hiccup or unset creds never affects the write that just succeeded.
+    void forwardEvent(record);
   }
 
   async update(id: string, updates: Partial<ExplanationRecord>): Promise<void> {
