@@ -66,15 +66,29 @@ function repoHash(root) {
 // Prose / docs files never gate — explaining the "mechanism" of a README is nonsense,
 // and a docs update is exactly the kind of change the user should never be taxed for.
 // Code is what carries mechanism; this exempts the clearly-not-code by extension/name.
+// Also exempts machine-authored files (lockfiles, minified, sourcemaps) and anything
+// under a generated/build directory — none of it is code a human authored, so taxing
+// it is pure friction (a top source of the old over-triggering).
 const EXEMPT_EXT = new Set(['.md', '.mdx', '.markdown', '.txt', '.rst', '.adoc']);
 const EXEMPT_NAME = new Set(['license', 'licence', 'changelog', 'authors', 'notice', 'copyright']);
+const EXEMPT_BASENAME = new Set([
+  'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb',
+  'cargo.lock', 'poetry.lock', 'gemfile.lock', 'composer.lock', 'go.sum', 'pipfile.lock',
+]);
+const EXEMPT_DIR = new Set(['dist', 'build', 'out', '.next', 'node_modules', 'coverage', 'generated', '__generated__', 'vendor']);
 function isExemptPath(filePath) {
   try {
-    const base = path.basename(String(filePath)).toLowerCase();
+    const p = String(filePath);
+    const base = path.basename(p).toLowerCase();
+    if (EXEMPT_BASENAME.has(base)) return true;
+    if (base.endsWith('.min.js') || base.endsWith('.min.css') || base.endsWith('.map')) return true;
     const ext = path.extname(base);
     if (EXEMPT_EXT.has(ext)) return true;
     const stem = ext ? base.slice(0, -ext.length) : base;
-    return EXEMPT_NAME.has(stem);
+    if (EXEMPT_NAME.has(stem)) return true;
+    const segs = p.split(/[\\/]/).map((s) => s.toLowerCase());
+    if (segs.some((s) => EXEMPT_DIR.has(s))) return true;
+    return false;
   } catch {
     return false;
   }
@@ -147,17 +161,57 @@ function isModeAEnabled() {
   }
 }
 
+// ── tunable thresholds (config.json, live — no redeploy) ───────────────────────
+// The two knobs that set how aggressive Mode A feels. Read per-call from config.json
+// so the user retunes by feel without a rebuild. Sane defaults if absent/garbage.
+//   modeA.threshold  cumulative per-subsystem churn (lines) that trips the gate  [80]
+//   modeA.writeFloor the MINIMUM size of the write that actually trips it         [8]
+// The floor is the fix for "a trivial copy edit set it off": a sub-floor write only
+// accrues toward the cumulative total, it can never itself be the trigger.
+function modeAConfig() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(CONFIG, 'utf8'));
+    return (cfg && cfg.modeA) || {};
+  } catch {
+    return {};
+  }
+}
+function churnThreshold() {
+  const v = Number(modeAConfig().threshold);
+  return Number.isFinite(v) && v > 0 ? v : 80;
+}
+function writeFloor() {
+  const v = Number(modeAConfig().writeFloor);
+  return Number.isFinite(v) && v >= 0 ? v : 8;
+}
+
 // ── care-gate (classifier heuristic, mirrors mcp-server/classifier.ts) ─────────
-// Only LOAD-BEARING writes are gated: a new dependency, or a substantial change.
-// Trivial edits sail through — that is what keeps this from becoming alarm fatigue
-// (the v0 failure that trained rubber-stamping). Scans the NEW text being written.
+// Only LOAD-BEARING writes are gated: a new EXTERNAL dependency, or a substantial
+// change. Trivial edits sail through — that is what keeps this from becoming alarm
+// fatigue (the v0 failure that trained rubber-stamping). Scans the NEW text written.
+//
+// A NEW EXTERNAL dependency is the import signal — a package pulled from OUTSIDE the
+// codebase (new capability, new blast radius). Relative imports (./  ../  absolute
+// local paths) are just intra-project wiring and must NOT gate; treating every import
+// line as load-bearing was the single biggest source of the old over-triggering.
+function isRelativeSpecifier(spec) {
+  return !spec || spec.startsWith('.') || spec.startsWith('/') || spec.startsWith('~');
+}
 function hasNewImport(text) {
-  return [
-    /^\s*import\s+/m,
-    /^\s*from\s+['"][\w@./-]+['"]\s+import/m,
-    /^\s*(?:const|let|var)\s+\w+\s*=\s*require\(/m,
-    /^\s*use\s+\w/m,
-  ].some((p) => p.test(text || ''));
+  const src = text || '';
+  const patterns = [
+    /(?:^|\n)\s*import\s+[^'"\n]*from\s+['"]([^'"]+)['"]/g, // import x from 'pkg'
+    /(?:^|\n)\s*import\s+['"]([^'"]+)['"]/g, // side-effect import 'pkg'
+    /(?:^|\n)\s*(?:const|let|var)\s+[^=\n]+=\s*require\(\s*['"]([^'"]+)['"]\s*\)/g, // require('pkg')
+    /(?:^|\n)\s*from\s+([A-Za-z_][\w.]*)\s+import\s+/g, // python: from pkg import (relative "from ." never matches)
+  ];
+  for (const re of patterns) {
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      if (!isRelativeSpecifier(m[1])) return true;
+    }
+  }
+  return false;
 }
 
 function lineCount(s) {
@@ -257,6 +311,8 @@ module.exports = {
   isModeAEnabled,
   classifyWrite,
   bumpChurn,
+  churnThreshold,
+  writeFloor,
   deny,
   allow,
   LARGE_CHANGE_THRESHOLD,

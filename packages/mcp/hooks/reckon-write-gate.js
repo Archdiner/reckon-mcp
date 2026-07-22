@@ -28,13 +28,18 @@ lib.readInput((input) => {
     const key = lib.gateKey(root, subsystem);
     if (lib.isCleared(key)) return lib.allow(); // already explained this subsystem this session
 
-    // Care-gate on CUMULATIVE churn, not just this one write. A new dependency gates
-    // immediately; otherwise the running per-subsystem total must cross the threshold —
-    // so eight 10-line edits trip on the write that pushes past 40, while a lone typo
-    // fix accrues too little to ever gate. This closes the chunk-it-past hole.
+    // Care-gate on CUMULATIVE churn, not just this one write. Every write accrues to
+    // the running per-subsystem total; the trigger fires when a SUBSTANTIAL write (one
+    // at least `writeFloor` lines — default 8) either pulls in a new external dependency
+    // or pushes the running total past `churnThreshold` (default 80). Two guarantees:
+    //   • a sub-floor write (a typo/copy fix) NEVER trips the gate — it only accrues,
+    //     so the block always lands on a meaty edit, not an arbitrary trivial one;
+    //   • many small edits still add up and trip on the write that crosses the line,
+    //     so the chunk-it-past hole stays closed.
     const { churn, hasImport } = lib.classifyWrite(toolName, ti);
     const cumulative = lib.bumpChurn(input.session_id, key, churn);
-    const significant = hasImport || cumulative > lib.LARGE_CHANGE_THRESHOLD;
+    const writeIsSubstantial = churn >= lib.writeFloor();
+    const significant = writeIsSubstantial && (hasImport || cumulative > lib.churnThreshold());
     if (!significant) return lib.allow();
 
     // Not cleared + load-bearing → block and route through the loop.
